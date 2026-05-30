@@ -1,0 +1,33 @@
+# OKX 交易助手 — 项目规则
+
+你是一个精通 OKX 永续合约交易系统的 AI 编程助手。
+用户的项目位于当前目录，是一个基于 Python 的 OKX SWAP 智能交易系统。
+
+## 核心架构
+
+- 5阶段流水线：数据加载 → 辅助拉取 → 指标提取 → 并行分析 → 后处理
+- 7维庄家博弈检测引擎：精英背离、OI流向、Taker、资金费率、基差、散户拥挤度等
+- AI 集成：DeepSeek API
+- Web 面板：Flask + ECharts
+- 入口：main.py（命令行）/ web_app.py（Web）
+
+## 关键文件
+
+- config.json：所有配置
+- okx_client.py：OKX API REST 客户端
+- manipulation/engine.py：庄家检测主引擎
+- manipulation/synthesis.py：7维加权合成
+- detectors.py：BehaviorTag 枚举 + 7大检测器
+
+## 修改规则
+
+1. 配置驱动，参数从 config.json → Config 类读取
+2. 分析层与交易所解耦（只吃 DataFrame/Dict）
+3. 管道各 stage 独立
+4. 模块级线程池复用
+
+## 快捷操作
+
+- 生成信号：python scripts/okx_signal.py <SYMBOL>
+- Web面板：python scripts/okx_web.py
+- 回测：python scripts/okx_backtest.py <SYMBOL>

@@ -1,0 +1,134 @@
+<!DOCTYPE html>
+<html lang="zh-CN" data-bs-theme="dark">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>{{ symbol }} - 详情</title>
+<link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" rel="stylesheet">
+<style>
+  body { background: #0d1117; color: #c9d1d9; }
+  .card-symbol { background: #161b22; border: 1px solid #30363d; }
+  .phase-acc { background: #00c853 !important; color: #000 !important; }
+  .phase-shake { background: #ffd600 !important; color: #000 !important; }
+  .phase-pump { background: #2979ff !important; }
+  .phase-dist { background: #ff1744 !important; }
+  .phase-cons { background: #6e7681 !important; }
+  .phase-unk { background: #30363d !important; }
+  .event-item { border-left: 3px solid transparent; background: #0d1117; }
+  .event-item.danger { border-left-color: #ff1744; }
+  .event-item.warning { border-left-color: #ffd600; }
+  .event-item.info { border-left-color: #58a6ff; }
+  .tag-pill { font-size: 11px; padding: 2px 8px; border-radius: 4px; font-weight: 600; }
+</style>
+</head>
+<body>
+
+<div class="container-fluid px-4 py-3">
+  <div class="d-flex align-items-center gap-3 pb-3 mb-3 border-bottom border-secondary">
+    <a href="/" class="btn btn-outline-light btn-sm">← 返回</a>
+    <h4 class="mb-0">{{ symbol }}</h4>
+    <span class="badge fs-6" id="phaseBadge">--</span>
+    <span class="text-secondary ms-auto" id="updateTime"></span>
+  </div>
+
+  <div class="row g-3">
+    <!-- Price & Status -->
+    <div class="col-lg-6">
+      <div class="card card-symbol">
+        <div class="card-header fw-bold">📊 实时数据</div>
+        <div class="card-body">
+          <table class="table table-sm table-borderless text-secondary mb-0">
+            <tr><td>最新价</td><td class="text-end text-white fs-5" id="lastPrice">--</td></tr>
+            <tr><td>卖一 / 买一</td><td class="text-end"><span class="text-danger" id="askPrice">--</span> / <span class="text-success" id="bidPrice">--</span></td></tr>
+            <tr><td>24H 最高 / 最低</td><td class="text-end"><span id="high24h">--</span> / <span id="low24h">--</span></td></tr>
+            <tr><td>24H 成交量</td><td class="text-end text-white" id="vol24h">--</td></tr>
+            <tr><td>当前阶段</td><td class="text-end fw-bold" id="curPhase">--</td></tr>
+            <tr><td>位置判断</td><td class="text-end text-white" id="curPos">--</td></tr>
+            <tr><td>置信度</td><td class="text-end text-white" id="confidence">--</td></tr>
+            <tr><td>信号 / 告警</td><td class="text-end"><span class="text-white" id="totalSigs">0</span> / <span class="text-danger fw-bold" id="dangerSigs">0</span></td></tr>
+          </table>
+        </div>
+      </div>
+    </div>
+
+    <!-- History -->
+    <div class="col-lg-6">
+      <div class="card card-symbol mb-3">
+        <div class="card-header fw-bold">📋 意图历史</div>
+        <div class="card-body p-2" id="intentHistory" style="max-height:260px;overflow-y:auto;"></div>
+      </div>
+      <div class="card card-symbol">
+        <div class="card-header fw-bold">🔍 检测记录</div>
+        <div class="card-body p-2" id="detectHistory" style="max-height:260px;overflow-y:auto;"></div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<script src="https://cdn.jsdelivr.net/npm/jquery@3.7.1/dist/jquery.min.js"></script>
+<script>
+const INST = '{{ symbol }}';
+const PHASE_CLS={'未知':'phase-unk','吸筹':'phase-acc','洗盘':'phase-shake','拉升':'phase-pump','出货':'phase-dist','盘整':'phase-cons'};
+const PHASE_COLOR={'未知':'#6e7681','吸筹':'#00c853','洗盘':'#ffd600','拉升':'#2979ff','出货':'#ff1744','盘整':'#6e7681'};
+
+function fmtPrice(p){return p?p>=1?p.toLocaleString('en-US',{minimumFractionDigits:2,maximumFractionDigits:4}):p.toLocaleString('en-US',{minimumFractionDigits:8,maximumFractionDigits:8}):'--';}
+function fmtVol(v){return v? v>=1e9?(v/1e9).toFixed(1)+'B':v>=1e6?(v/1e6).toFixed(1)+'M':v.toFixed(0):'--';}
+function fmtTime(ts){return new Date(ts*1000).toLocaleTimeString('zh-CN',{hour12:false});}
+
+function tagCls(t){
+  var g=['低位区','地量','夹板吸筹','隐蔽吸筹(拆单)'],r=['高位区','天量','高位派发','大单主动出货'];
+  if(g.includes(t))return'bg-success bg-opacity-25 text-success';
+  if(r.includes(t))return'bg-danger bg-opacity-25 text-danger';
+  return'bg-warning bg-opacity-25 text-warning';
+}
+
+function refresh(){
+  $.getJSON('/api/symbol/'+INST,function(d){
+    $('#lastPrice').text(fmtPrice(d.last_price));
+    $('#askPrice').text(fmtPrice(d.ask_price));
+    $('#bidPrice').text(fmtPrice(d.bid_price));
+    $('#high24h').text(fmtPrice(d.high_24h));
+    $('#low24h').text(fmtPrice(d.low_24h));
+    $('#vol24h').text(fmtVol(d.volume_24h));
+    var c=PHASE_COLOR[d.current_phase]||'#fff';
+    $('#curPhase').text(d.current_phase).css('color',c);
+    $('#curPos').text(d.current_position);
+    $('#confidence').text((d.confidence*100).toFixed(0)+'%');
+    $('#totalSigs').text(d.total_signals||0);
+    $('#dangerSigs').text(d.danger_signals||0);
+    $('#phaseBadge').text(d.current_phase).attr('class','badge fs-6 '+ (PHASE_CLS[d.current_phase]||'phase-unk'));
+    $('#updateTime').text('更新: '+fmtTime(d.last_update || Date.now()/1000));
+
+    // Intent history
+    var intents=d.recent_intents||[];
+    var ih='';
+    if(intents.length){
+      intents.reverse().forEach(function(i){
+        var clr=PHASE_COLOR[i.phase]||'#fff';
+        ih+='<div class="event-item '+i.alert_level+' p-2 mb-1 rounded-1"><div class="small">';
+        ih+='<span class="text-secondary">'+fmtTime(i.timestamp)+'</span> ';
+        ih+='<span style="color:'+clr+';font-weight:600;">'+i.phase+'</span></div>';
+        ih+='<div class="small text-secondary">'+i.description+'</div></div>';
+      });
+    } else ih='<div class="text-center text-secondary py-3">暂无</div>';
+    $('#intentHistory').html(ih);
+
+    // Detection history
+    var dets=d.recent_detections||[];
+    var dh='';
+    if(dets.length){
+      dets.reverse().forEach(function(dt){
+        dh+='<div class="d-flex align-items-center gap-2 py-1 border-bottom border-secondary border-opacity-10 small">';
+        dh+='<span class="text-secondary text-nowrap">'+fmtTime(dt.timestamp)+'</span>';
+        dh+='<span class="tag-pill '+tagCls(dt.tag)+'">'+dt.tag+'</span>';
+        dh+='<span class="text-secondary text-truncate">'+(dt.detail||'').substring(0,40)+'</span></div>';
+      });
+    } else dh='<div class="text-center text-secondary py-3">暂无</div>';
+    $('#detectHistory').html(dh);
+  });
+}
+
+$(function(){ refresh(); setInterval(refresh,2000); });
+</script>
+</body>
+</html>

@@ -1,0 +1,163 @@
+<!DOCTYPE html>
+<html lang="zh-CN" data-bs-theme="dark">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>庄家行为检测系统</title>
+<link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" rel="stylesheet">
+<style>
+  body { background: #0d1117; color: #c9d1d9; }
+  .phase-acc { background: #00c853 !important; color: #000 !important; }
+  .phase-shake { background: #ffd600 !important; color: #000 !important; }
+  .phase-pump { background: #2979ff !important; }
+  .phase-dist { background: #ff1744 !important; }
+  .phase-cons { background: #6e7681 !important; }
+  .phase-unk { background: #30363d !important; }
+  .card-symbol { background: #161b22; border: 1px solid #30363d; transition: all .2s; }
+  .card-symbol:hover { border-color: #58a6ff; }
+  .card-symbol.danger { border-color: #ff174460; background: #ff174408; }
+  .progress-phase { height: 4px; background: #21262d; }
+  .tag-pill { font-size: 11px; padding: 2px 8px; border-radius: 4px; font-weight: 600; }
+  .event-item { border-left: 3px solid transparent; background: #0d1117; }
+  .event-item.danger { border-left-color: #ff1744; }
+  .event-item.warning { border-left-color: #ffd600; }
+  .event-item.info { border-left-color: #58a6ff; }
+  ::-webkit-scrollbar { width: 4px; } ::-webkit-scrollbar-thumb { background: #30363d; border-radius: 2px; }
+</style>
+</head>
+<body>
+
+<div class="container-fluid px-4 py-3">
+  <!-- Header -->
+  <div class="d-flex justify-content-between align-items-center pb-3 mb-3 border-bottom border-secondary">
+    <div>
+      <h4 class="mb-0">📡 庄家行为检测系统</h4>
+      <small class="text-secondary">OKX Market Maker Behavior Monitor</small>
+    </div>
+    <div class="d-flex gap-3 text-secondary small align-items-center">
+      <span class="badge bg-success" id="sysBadge">运行中</span>
+      <span id="uptime">--</span>
+      <span>信号: <strong class="text-white" id="totalSignals">0</strong></span>
+      <span>告警: <span class="badge bg-danger" id="totalDangers">0</span></span>
+    </div>
+  </div>
+
+  <div class="row g-3">
+    <!-- Left: Symbol Cards -->
+    <div class="col-lg-9">
+      <div id="symbolCards"></div>
+    </div>
+
+    <!-- Right: Events + Tags -->
+    <div class="col-lg-3">
+      <div class="card card-symbol mb-3">
+        <div class="card-header small fw-bold">📋 实时事件</div>
+        <div class="card-body p-2" id="eventsFeed" style="max-height:400px;overflow-y:auto;"></div>
+      </div>
+      <div class="card card-symbol">
+        <div class="card-header small fw-bold">🔍 近期检测</div>
+        <div class="card-body p-2" id="recentTags" style="max-height:300px;overflow-y:auto;"></div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<script src="https://cdn.jsdelivr.net/npm/jquery@3.7.1/dist/jquery.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js"></script>
+<script>
+const PHASE = {
+  '未知':{cls:'phase-unk',icon:'❓'},
+  '吸筹':{cls:'phase-acc',icon:'🟢'},
+  '洗盘':{cls:'phase-shake',icon:'🟡'},
+  '拉升':{cls:'phase-pump',icon:'🔵'},
+  '出货':{cls:'phase-dist',icon:'🔴'},
+  '盘整':{cls:'phase-cons',icon:'⚪'}
+};
+const ORDER = ['未知','吸筹','洗盘','拉升','出货'];
+const TAG_COLOR = (t)=>{
+  const g=['低位区','地量','夹板吸筹','隐蔽吸筹(拆单)'];
+  const r=['高位区','天量','高位派发','大单主动出货'];
+  if(g.includes(t))return'bg-success bg-opacity-25 text-success';
+  if(r.includes(t))return'bg-danger bg-opacity-25 text-danger';
+  return'bg-warning bg-opacity-25 text-warning';
+};
+function fmtPrice(p){return p?p>=1?p.toLocaleString('en-US',{minimumFractionDigits:2,maximumFractionDigits:4}):p.toLocaleString('en-US',{minimumFractionDigits:8,maximumFractionDigits:8}):'--';}
+function fmtVol(v){return v? v>=1e9?(v/1e9).toFixed(1)+'B':v>=1e6?(v/1e6).toFixed(1)+'M':v.toFixed(0):'--';}
+function fmtTime(ts){return new Date(ts*1000).toLocaleTimeString('zh-CN',{hour12:false});}
+function fmtUp(sec){var h=Math.floor(sec/3600),m=Math.floor((sec%3600)/60);return h+'h '+m+'m';}
+
+function phaseFlow(cur){
+  var i=ORDER.indexOf(cur),html='<div class="d-flex align-items-center gap-1 small py-1">';
+  ORDER.forEach((p,j)=>{
+    var a=j===i,o=j<i,c=PHASE[p].cls;
+    html+='<span class="badge '+c+(o?' opacity-50':'')+'">'+PHASE[p].icon+' '+p+'</span>';
+    if(j<ORDER.length-1)html+='<span class="text-secondary">→</span>';
+  });
+  return html+'</div>';
+}
+
+function renderSymbols(data){
+  var $c=$('#symbolCards');
+  if(!data.symbols||!data.symbols.length){$c.html('<div class="text-center text-secondary py-5">⏳ 等待数据...</div>');return;}
+  var h='<div class="row g-3">';
+  data.symbols.forEach(s=>{
+    var dc=s.alert_level==='danger'?' danger':'';
+    h+='<div class="col-md-6"><div class="card card-symbol'+dc+'"><div class="card-body py-3">';
+    h+='<div class="d-flex justify-content-between align-items-start mb-2">';
+    h+='<div> <h5 class="mb-1">'+PHASE[s.current_phase].icon+' '+s.inst_id+'</h5>';
+    h+='<span class="badge '+PHASE[s.current_phase].cls+' me-1">'+s.current_phase+'</span>';
+    h+='<small class="text-secondary">位置: '+s.current_position+'</small></div>';
+    h+='<h5 class="mb-0">'+fmtPrice(s.last_price)+'</h5></div>';
+    h+=phaseFlow(s.current_phase);
+    h+='<div class="progress progress-phase mt-2"><div class="progress-bar '+PHASE[s.current_phase].cls+'" style="width:'+Math.min(100,(s.total_signals||0)*5)+'%"></div></div>';
+    h+='<div class="d-flex justify-content-between mt-1 small"><span class="text-secondary">📊 信号 '+ (s.total_signals||0)+'</span><span class="text-danger">🚨 告警 '+ (s.danger_signals||0)+'</span></div>';
+    h+='</div></div></div>';
+  });
+  $c.html(h+'</div>');
+}
+
+function refresh(){
+  $.getJSON('/api/summary',function(data){
+    $('#sysBadge').text(data.status).removeClass('bg-success bg-danger').addClass(data.status==='running'?'bg-success':'bg-danger');
+    $('#uptime').text('运行: '+fmtUp(data.uptime));
+    $('#totalSignals').text(data.total_signals);
+    $('#totalDangers').text(data.total_dangers);
+    renderSymbols(data);
+    // Events
+    var evs=data.recent_events||[];
+    var eh='';
+    if(evs.length) {
+      evs.slice(-30).reverse().forEach(function(e){
+        eh+='<div class="event-item '+e.alert_level+' p-2 mb-1 rounded-1">';
+        eh+='<div class="small text-secondary">'+fmtTime(e.timestamp)+' <strong class="text-white">'+e.inst_id+'</strong></div>';
+        eh+='<div class="small">'+e.description+'</div></div>';
+      });
+    } else eh='<div class="text-center text-secondary py-3">暂无事件</div>';
+    $('#eventsFeed').html(eh);
+  });
+  // Tags
+  $.getJSON('/api/symbols',function(syms){
+    var tags=[];
+    $.each(syms,function(id,st){
+      if(st.recent_detections)st.recent_detections.slice(-15).forEach(function(d){tags.push({s:id,ts:d.timestamp,tag:d.tag,detail:d.detail});});
+    });
+    tags.sort(function(a,b){return b.ts-a.ts;});
+    tags=tags.slice(0,15);
+    var th='';
+    if(tags.length){
+      tags.forEach(function(t){
+        th+='<div class="d-flex align-items-center gap-2 py-1 border-bottom border-secondary border-opacity-10 small">';
+        th+='<span class="text-secondary text-nowrap">'+fmtTime(t.ts)+'</span>';
+        th+='<span class="text-white text-nowrap">'+t.s+'</span>';
+        th+='<span class="tag-pill '+TAG_COLOR(t.tag)+'">'+t.tag+'</span>';
+        th+='<span class="text-secondary text-truncate">'+(t.detail||'').substring(0,40)+'</span></div>';
+      });
+    } else th='<div class="text-center text-secondary py-3">暂无检测</div>';
+    $('#recentTags').html(th);
+  });
+}
+
+$(function(){ refresh(); setInterval(refresh,2000); });
+</script>
+</body>
+</html>

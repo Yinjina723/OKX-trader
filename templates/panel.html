@@ -1,0 +1,485 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>OKX 交易助手</title>
+  <script src="https://cdn.jsdelivr.net/npm/echarts@5/dist/echarts.min.js"></script>
+  <style>
+    :root {
+      --bg:#0d1117; --bg-card:#161b22; --border:#30363d; --text:#e6edf3; --text2:#8b949e;
+      --green:#3fb950; --red:#f85149; --blue:#58a6ff; --yellow:#d2991d; --purple:#a371f7;
+      --radius:12px; --radius-sm:8px;
+    }
+    *{box-sizing:border-box;margin:0;padding:0;}
+    body{font-family:-apple-system,BlinkMacSystemFont,"Segoe UI","Noto Sans SC",sans-serif;background:var(--bg);color:var(--text);line-height:1.5;min-height:100vh;-webkit-font-smoothing:antialiased;}
+
+    /* ─── 顶栏 ─── */
+    .topbar{background:var(--bg-card);border-bottom:1px solid var(--border);padding:8px 20px;display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:8px;position:sticky;top:0;z-index:100;}
+    .topbar-l{display:flex;align-items:center;gap:12px;}
+    .topbar-l .logo{font-size:1.3rem;}
+    .topbar-l .brand{font-weight:700;font-size:.95rem;}
+    .topbar-l .sym{font-size:.7rem;color:var(--text2);}
+    .topbar-r{display:flex;align-items:center;gap:12px;}
+    .topbar-price{font-size:1.1rem;font-weight:700;color:var(--green);}
+    .dot-live{display:inline-block;width:6px;height:6px;border-radius:50%;background:var(--green);margin-right:4px;animation:pulse 2s infinite;}
+    @keyframes pulse{0%,100%{opacity:1;}50%{opacity:0.3;}}
+
+    /* ─── 双栏布局 ─── */
+    .layout{display:flex;height:calc(100vh - 44px);}
+    .main{flex:1;overflow-y:auto;padding:14px 16px 24px;min-width:0;}
+    .sidebar{width:300px;min-width:280px;background:var(--bg-card);border-left:1px solid var(--border);overflow-y:auto;padding:14px;position:sticky;top:44px;height:calc(100vh - 44px);}
+    .sidebar h3{font-size:.8rem;color:var(--text2);text-transform:uppercase;letter-spacing:.5px;margin-bottom:12px;padding-bottom:8px;border-bottom:1px solid var(--border);}
+
+    @media(max-width:900px){
+      .layout{flex-direction:column;}
+      .sidebar{width:100%;min-width:0;height:auto;position:static;border-left:none;border-top:1px solid var(--border);}
+    }
+
+    /* ─── 卡片 ─── */
+    .card{background:var(--bg-card);border:1px solid var(--border);border-radius:var(--radius);padding:14px 16px;margin-bottom:12px;}
+    .card-title{font-size:.75rem;color:var(--text2);margin-bottom:8px;text-transform:uppercase;letter-spacing:.5px;}
+
+    /* ─── 图表 ─── */
+    #chart{width:100%;height:280px;border-radius:8px;overflow:hidden;}
+
+    /* ─── 信号大卡 ─── */
+    .signal-big{text-align:center;padding:20px 14px;border-radius:var(--radius);border:2px solid var(--border);transition:all .3s;}
+    .signal-big.long{border-color:rgba(63,185,80,.35);background:rgba(63,185,80,.04);}
+    .signal-big.short{border-color:rgba(248,81,73,.35);background:rgba(248,81,73,.04);}
+    .signal-big.hold{border-color:rgba(139,148,158,.25);}
+    .sig-icon{font-size:2rem;margin-bottom:2px;}
+    .sig-dir{font-size:1.3rem;font-weight:800;}
+    .sig-dir.long{color:var(--green);}.sig-dir.short{color:var(--red);}.sig-dir.hold{color:var(--text2);}
+    .sig-prices{display:flex;justify-content:center;gap:20px;margin-top:10px;font-size:.8rem;flex-wrap:wrap;}
+    .sig-prices>div{display:flex;flex-direction:column;align-items:center;min-width:65px;}
+    .sig-prices .lbl{color:var(--text2);font-size:.7rem;}
+    .sig-prices .val{font-weight:700;font-size:.95rem;margin-top:1px;}
+    .sig-meta{margin-top:8px;font-size:.74rem;color:var(--text2);display:flex;justify-content:center;gap:12px;flex-wrap:wrap;}
+
+    /* ─── 7维进度条 ─── */
+    .dims-list{display:flex;flex-direction:column;gap:6px;}
+    .dim-row{display:flex;align-items:center;gap:8px;padding:4px 0;}
+    .dim-label{min-width:80px;font-size:.74rem;color:var(--text2);text-align:right;}
+    .dim-bar-wrap{flex:1;height:16px;background:rgba(255,255,255,.04);border-radius:10px;overflow:hidden;position:relative;}
+    .dim-bar-fill{height:100%;border-radius:10px;transition:width .4s;position:absolute;}
+    .dim-bar-fill.plus{background:linear-gradient(90deg,#238636,var(--green));left:50%;}
+    .dim-bar-fill.minus{background:linear-gradient(270deg,#b62324,var(--red));right:50%;}
+    .dim-center-line{position:absolute;left:50%;top:0;bottom:0;width:1px;background:rgba(255,255,255,.1);}
+    .dim-score{min-width:44px;font-size:.78rem;font-weight:700;text-align:center;}
+    .dim-score.plus{color:var(--green);}.dim-score.minus{color:var(--red);}.dim-score.zero{color:var(--text2);}
+
+    /* ─── 庄家 ─── */
+    .phase-tag{display:inline-block;padding:3px 12px;border-radius:999px;font-size:.78rem;font-weight:700;margin-right:6px;}
+    .phase-tag.bull{background:rgba(63,185,80,.12);color:var(--green);border:1px solid rgba(63,185,80,.25);}
+    .phase-tag.bear{background:rgba(248,81,73,.12);color:var(--red);border:1px solid rgba(248,81,73,.25);}
+    .phase-tag.none{background:rgba(139,148,158,.1);color:var(--text2);border:1px solid rgba(139,148,158,.15);}
+    .insight-box{background:rgba(163,113,247,.05);border:1px solid rgba(163,113,247,.18);border-radius:8px;padding:10px;margin-top:8px;}
+    .insight-box .label{font-size:.7rem;color:var(--purple);}
+    .insight-box .action{font-size:.88rem;font-weight:700;margin-top:3px;}
+    .insight-box .info{font-size:.73rem;color:var(--text2);margin-top:3px;}
+    .signals-list{font-size:.73rem;color:var(--text2);margin-top:6px;line-height:1.6;}
+    .confluence-badge{display:inline-block;padding:2px 9px;border-radius:999px;font-size:.7rem;font-weight:700;}
+    .confluence-badge.s5{background:rgba(63,185,80,.15);color:var(--green);border:1px solid rgba(63,185,80,.3);}
+    .confluence-badge.s3{background:rgba(210,153,29,.12);color:var(--yellow);border:1px solid rgba(210,153,29,.25);}
+    .confluence-badge.s0{background:rgba(139,148,158,.1);color:var(--text2);border:1px solid rgba(139,148,158,.15);}
+
+    /* ─── 插针事件卡 ─── */
+    .wick-event-card{background:var(--bg-card);border:1px solid var(--border);border-radius:var(--radius);padding:12px 14px;margin-bottom:12px;}
+    .wick-event-card .wick-header{display:flex;align-items:center;gap:8px;margin-bottom:8px;}
+    .wick-event-card .wick-header .wick-flag{font-size:1.1rem;}
+    .wick-event-card .wick-header .wick-label{font-size:.7rem;color:var(--text2);text-transform:uppercase;letter-spacing:.4px;}
+    .wick-event-item{display:flex;align-items:flex-start;gap:10px;padding:8px 10px;border-radius:8px;margin-bottom:4px;font-size:.75rem;}
+    .wick-event-item.down{background:rgba(248,81,73,.06);border-left:3px solid var(--red);}
+    .wick-event-item.up{background:rgba(210,153,29,.06);border-left:3px solid var(--yellow);}
+    .wick-event-item .wick-dot{font-size:.9rem;flex-shrink:0;margin-top:1px;}
+    .wick-event-item .wick-body{flex:1;min-width:0;}
+    .wick-event-item .wick-tag{display:inline-block;padding:1px 8px;border-radius:999px;font-size:.68rem;font-weight:700;margin-bottom:2px;}
+    .wick-event-item.down .wick-tag{background:rgba(248,81,73,.12);color:var(--red);}
+    .wick-event-item.up .wick-tag{background:rgba(210,153,29,.12);color:var(--yellow);}
+    .wick-event-item .wick-desc{color:var(--text2);font-size:.7rem;line-height:1.4;}
+    .wick-event-none{font-size:.73rem;color:var(--text2);font-style:italic;}
+
+    /* ─── 按钮 ─── */
+    .btn{display:inline-flex;align-items:center;gap:5px;padding:8px 16px;border-radius:7px;border:none;cursor:pointer;font-size:.82rem;font-weight:700;font-family:inherit;transition:all .2s;}
+    .btn-go{background:linear-gradient(135deg,#1f6feb,#238636);color:#fff;width:100%;justify-content:center;box-shadow:0 2px 10px rgba(31,111,235,.25);}
+    .btn-go:hover{transform:translateY(-1px);filter:brightness(1.1);}
+    .btn-go:disabled{opacity:.5;cursor:not-allowed;transform:none;filter:none;}
+    .btn-save{background:linear-gradient(135deg,#238636,#1f6feb);color:#fff;width:100%;justify-content:center;margin-top:8px;}
+    .btn-save:hover{filter:brightness(1.15);}
+
+    /* ─── 侧边栏表单 ─── */
+    .sb-section{margin-bottom:14px;}
+    .sb-section h4{font-size:.72rem;color:var(--blue);margin-bottom:6px;font-weight:600;}
+    .sb-group{display:grid;grid-template-columns:1fr 1fr;gap:6px 10px;margin-bottom:8px;}
+    .sb-item{display:flex;flex-direction:column;gap:1px;}
+    .sb-item.single{grid-column:1/-1;}
+    .sb-item label{font-size:.68rem;color:var(--text2);}
+    .sb-item input,.sb-item select{padding:5px 7px;background:var(--bg);color:var(--text);border:1px solid var(--border);border-radius:5px;font-family:inherit;font-size:.74rem;width:100%;}
+    .sb-item input:focus,.sb-item select:focus{outline:none;border-color:var(--blue);}
+    .sb-toggle{display:flex;align-items:center;gap:8px;font-size:.74rem;color:var(--text2);}
+    .sb-toggle input[type="checkbox"]{width:14px;height:14px;accent-color:var(--blue);}
+    .sb-toggle-row{display:flex;justify-content:space-between;align-items:center;margin-bottom:6px;}
+
+    /* ─── Toast ─── */
+    .toast{position:fixed;top:20px;right:20px;z-index:9999;padding:8px 18px;border-radius:7px;font-weight:600;font-size:.8rem;opacity:0;transform:translateX(40px);transition:all .3s;pointer-events:none;}
+    .toast.show{opacity:1;transform:translateX(0);}
+    .toast-ok{background:#238636;color:#fff;}.toast-err{background:#b62324;color:#fff;}
+    .spinner{display:inline-block;width:15px;height:15px;border:2px solid rgba(255,255,255,.2);border-top-color:#fff;border-radius:50%;animation:spin .6s linear infinite;}
+    @keyframes spin{to{transform:rotate(360deg);}}
+    ::-webkit-scrollbar{width:4px;}
+    ::-webkit-scrollbar-thumb{background:var(--border);border-radius:10px;}
+  </style>
+</head>
+<body>
+
+  <!-- ══════ 顶栏 ══════ -->
+  <div class="topbar">
+    <div class="topbar-l">
+      <span class="logo">🪙</span>
+      <span class="brand">OKX 交易助手</span>
+      <span class="sym" id="topbar-sym">—</span>
+    </div>
+    <div class="topbar-r">
+      <span id="topbar-price" class="topbar-price">—</span>
+      <span style="font-size:.7rem;color:var(--text2);"><span class="dot-live"></span>实时</span>
+    </div>
+  </div>
+
+  <div class="toast" id="toast"></div>
+
+  <!-- ══════ 布局 ══════ -->
+  <div class="layout">
+
+    <!-- 左侧：分析结果 -->
+    <div class="main" id="main-area">
+
+      <!-- 按钮 -->
+      <div class="card" style="padding:8px;">
+        <button class="btn btn-go" onclick="go()" id="btn-go">⚡ 分析当前市场</button>
+      </div>
+
+      <!-- K线图 -->
+      <div class="card">
+        <div class="card-title">📊 价格走势</div>
+        <div id="chart"></div>
+      </div>
+
+      <!-- 综合判断 -->
+      <div class="card" id="sig-sec" style="display:none;">
+        <div class="card-title">🎯 综合判断</div>
+        <div class="signal-big" id="sig-card">
+          <div class="sig-icon" id="sig-icon">⏳</div>
+          <div class="sig-dir hold" id="sig-dir">等待分析...</div>
+          <div class="sig-prices" id="sig-prices"></div>
+          <div class="sig-meta" id="sig-meta"></div>
+        </div>
+      </div>
+
+      <!-- 插针事件 -->
+      <div class="wick-event-card" id="wick-sec" style="display:none;">
+        <div class="wick-header">
+          <span class="wick-flag">⚡</span>
+          <span class="wick-label">K线异常事件 — 庄家插针</span>
+        </div>
+        <div id="wick-list"></div>
+      </div>
+
+      <!-- 7维解读 -->
+      <div class="card" id="dims-sec" style="display:none;">
+        <div class="card-title">🔍 7维市场信号解读</div>
+        <div class="dims-list" id="dims-list"></div>
+      </div>
+
+      <!-- 庄家动向 -->
+      <div class="card" id="manip-sec" style="display:none;">
+        <div class="card-title">🧠 庄家动向</div>
+        <div id="manip-content"></div>
+      </div>
+    </div>
+
+    <!-- 右侧：设置面板 -->
+    <div class="sidebar" id="sidebar">
+      <h3>⚙️ 设置</h3>
+
+      <!-- 基础设置 -->
+      <div class="sb-section">
+        <h4>📋 基础</h4>
+        <div class="sb-item single" style="margin-bottom:6px;">
+          <label>交易对</label>
+          <input id="cfg-sym" placeholder="AI-USDT-SWAP">
+        </div>
+        <div class="sb-group">
+          <div class="sb-item"><label>K线周期</label><select id="cfg-tf"><option>1m</option><option>5m</option><option>15m</option><option>1H</option><option>4H</option><option>1D</option></select></div>
+          <div class="sb-item"><label>历史天数</label><input id="cfg-days" type="number" value="5" min="1" max="90"></div>
+        </div>
+        <div class="sb-group">
+          <div class="sb-item"><label>信号间隔(分)</label><input id="cfg-interval" type="number" value="5" min="1"></div>
+          <div class="sb-item"><label>AI参考K线数</label><input id="cfg-lookback" type="number" value="30" min="10"></div>
+        </div>
+      </div>
+
+      <!-- AI设置 -->
+      <div class="sb-section">
+        <h4>🤖 AI</h4>
+        <div class="sb-toggle-row">
+          <span class="sb-toggle"><input type="checkbox" id="cfg-ai-ensemble" checked> 集成投票 (3票)</span>
+          <span class="sb-toggle"><input type="checkbox" id="cfg-ai-eco" checked> 节能模式</span>
+        </div>
+        <div class="sb-group">
+          <div class="sb-item"><label>温度 (0.1~1)</label><input id="cfg-ai-temp" type="number" value="0.3" min="0.1" max="1" step="0.05"></div>
+          <div class="sb-item"><label>投票阈值</label><input id="cfg-ai-threshold" type="number" value="2" min="1" max="4"></div>
+        </div>
+      </div>
+
+      <!-- 数据 -->
+      <div class="sb-section">
+        <h4>📡 数据量</h4>
+        <div class="sb-group">
+          <div class="sb-item"><label>OI条数</label><input id="cfg-oi-limit" type="number" value="96" min="12" max="500"></div>
+          <div class="sb-item"><label>大数据条数</label><input id="cfg-bigdata-limit" type="number" value="48" min="6" max="200"></div>
+        </div>
+      </div>
+
+      <!-- 分析模块 -->
+      <div class="sb-section">
+        <h4>🔬 分析模块</h4>
+        <div class="sb-toggle-row">
+          <span class="sb-toggle"><input type="checkbox" id="cfg-mtf" checked> 多周期共振</span>
+          <span class="sb-toggle"><input type="checkbox" id="cfg-manip" checked> 操盘检测</span>
+        </div>
+        <div class="sb-toggle-row">
+          <span class="sb-toggle"><input type="checkbox" id="cfg-tech" checked> 技术分析</span>
+          <span class="sb-toggle"><input type="checkbox" id="cfg-sentiment" checked> 市场情绪</span>
+        </div>
+        <div class="sb-toggle-row">
+          <span class="sb-toggle"><input type="checkbox" id="cfg-adv-ind" checked> 高级指标</span>
+          <span class="sb-toggle"><input type="checkbox" id="cfg-vol-adapt" checked> 波动率自适应</span>
+        </div>
+      </div>
+
+      <!-- 长周期 -->
+      <div class="sb-section">
+        <h4>📈 多周期共振</h4>
+        <div class="sb-group">
+          <div class="sb-item"><label>大趋势(1D~1H)</label><select id="cfg-mtf-trend"><option>1D</option><option>4H</option><option>1H</option></select></div>
+          <div class="sb-item"><label>中期结构</label><select id="cfg-mtf-struct"><option>4H</option><option>1H</option></select></div>
+        </div>
+      </div>
+
+      <button class="btn btn-save" onclick="saveCfg()">💾 保存设置</button>
+      <div style="font-size:.65rem;color:var(--text2);text-align:center;margin-top:8px;">修改后记得点保存</div>
+    </div>
+  </div>
+
+  <script>
+    // ─── Toast ───
+    function toast(m,e){var t=document.getElementById("toast");t.textContent=m;t.className="toast toast-"+(e?"err":"ok")+" show";clearTimeout(t._t);t._t=setTimeout(function(){t.classList.remove("show")},2500);}
+
+    // ─── 主分析 ───
+    async function go(){
+      var sym=(document.getElementById("cfg-sym").value||"").trim()||"AI-USDT-SWAP";
+      document.getElementById("topbar-sym").textContent=sym.replace("-SWAP","");
+      var btn=document.getElementById("btn-go");btn.disabled=true;btn.innerHTML='<span class="spinner"></span> 分析中...';
+
+      try{
+        var r=await fetch("/api/generate_signal",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({symbol:sym})});
+        var d=await r.json();
+        if(d.current_price) document.getElementById("topbar-price").textContent=Number(d.current_price).toFixed(4);
+        if(d.kline&&d.kline.length) drawChart(d.kline);
+
+        var sig=d.signal||{};
+        var dir=sig.direction||"neutral";
+
+        // ── 综合判断 ──
+        document.getElementById("sig-sec").style.display="block";
+        var iconMap={long:"🟢",short:"🔴",neutral:"⚪"};
+        var wordMap={long:"建议做多 ↗",short:"建议做空 ↘",neutral:"建议观望"};
+        document.getElementById("sig-card").className="signal-big "+(dir==="long"?"long":dir==="short"?"short":"hold");
+        document.getElementById("sig-icon").textContent=iconMap[dir]||"⚪";
+        var dirEl=document.getElementById("sig-dir");
+        dirEl.textContent=wordMap[dir]||"方向不明";
+        dirEl.className="sig-dir "+(dir==="long"?"long":dir==="short"?"short":"hold");
+
+        var ph="";
+        if(sig.entry)ph+='<div><span class="lbl">入场价</span><span class="val">'+Number(sig.entry).toFixed(4)+'</span></div>';
+        if(sig.stop_loss)ph+='<div><span class="lbl">止损价</span><span class="val" style="color:var(--red)">'+Number(sig.stop_loss).toFixed(4)+'</span></div>';
+        if(sig.take_profit1)ph+='<div><span class="lbl">止盈价</span><span class="val" style="color:var(--green)">'+Number(sig.take_profit1).toFixed(4)+'</span></div>';
+        document.getElementById("sig-prices").innerHTML=ph;
+
+        var mh='';
+        if(sig.strength)mh+='强度 <b>'+(sig.strength==="strong"?"★★★":sig.strength==="medium"?"★★☆":"★☆☆")+'</b>';
+        if(sig.confidence)mh+=' · 置信 <b>'+(Number(sig.confidence)*100).toFixed(0)+'%</b>';
+        if(sig.market_state)mh+=' · <b>'+sig.market_state+'</b>';
+        if(sig.confluence_detail){
+          var clv=Number(sig.confluence)||0;
+          var ccls=clv>=5?"s5":clv>=3?"s3":"s0";
+          mh+=' · <span class="confluence-badge '+ccls+'">共振'+sig.confluence_detail.split('(')[0]+'</span>';
+        }
+        document.getElementById("sig-meta").innerHTML=mh;
+
+        // ── 7维 ──
+        var manip=sig.manipulation||{}, phase=manip.phase_result||{}, dims=phase.dimension_scores||{};
+        if(Object.keys(dims).length>0){
+          document.getElementById("dims-sec").style.display="block";
+          var dimOrder=[
+            {key:"精英背离",desc:"精英 vs 散户仓位背离",max:2},
+            {key:"精英多周期",desc:"精英5m/1H/1D仓位趋势",max:2},
+            {key:"散户拥挤度",desc:"散户扎堆方向(反向)",max:1.5},
+            {key:"OI流向",desc:"持仓量+价格四象限",max:1.5},
+            {key:"Taker",desc:"主动买卖盘聪明钱",max:1.5},
+            {key:"资金费率",desc:"持仓成本极端程度",max:1},
+            {key:"基差多周期",desc:"期货vs现货偏离",max:1}
+          ];
+          var dl="";
+          for(var i=0;i<dimOrder.length;i++){
+            var o=dimOrder[i], sc=Number(dims[o.key])||0;
+            var pct=Math.min(Math.abs(sc)/o.max*50,50);
+            var cls=sc>0.05?"plus":(sc<-0.05?"minus":"zero");
+            var txt=sc>0.05?"偏多":(sc<-0.05?"偏空":"中性");
+            dl+='<div class="dim-row"><div class="dim-label" title="'+o.desc+'">'+o.key+'</div>';
+            dl+='<div class="dim-bar-wrap"><div class="dim-center-line"></div>';
+            dl+='<div class="dim-bar-fill '+(sc>=0?"plus":"minus")+'" style="width:'+pct+'%;'+(sc>=0?'left:50%;':"")+'"></div></div>';
+            dl+='<div class="dim-score '+cls+'">'+(sc>=0?"+":"")+sc.toFixed(1)+' '+txt+'</div></div>';
+          }
+          document.getElementById("dims-list").innerHTML=dl;
+        }
+
+        // ── 插针事件 ──
+        var wev=d.wick_events||[];
+        if(wev.length>0){
+          document.getElementById("wick-sec").style.display="block";
+          var wh='';
+          for(var j=0;j<wev.length;j++){
+            var w=wev[j];
+            var wcls=w.type==="up"?"up":"down";
+            var wicon=w.type==="up"?"🕯️":"📉";
+            var wtag=w.type_cn||(w.type==="up"?"诱多出货":"洗盘震仓");
+            // 从detail中提取描述（去掉标签部分）
+            var desc=w.detail||"";
+            desc=desc.replace(/^\[.+?\]\s*/,"");
+            wh+='<div class="wick-event-item '+wcls+'">';
+            wh+='<span class="wick-dot">'+wicon+'</span>';
+            wh+='<div class="wick-body"><span class="wick-tag">'+wtag+'</span>';
+            wh+='<div class="wick-desc">'+desc+'</div></div></div>';
+          }
+          document.getElementById("wick-list").innerHTML=wh;
+        }else{
+          document.getElementById("wick-sec").style.display="none";
+        }
+
+        // ── 庄家 ──
+        if(phase.phase_cn){
+          document.getElementById("manip-sec").style.display="block";
+          var pc=(phase.phase==="accumulation"||phase.phase==="markup"||phase.phase==="shakeout")?"bull":
+                 (phase.phase==="distribution"||phase.phase==="markdown")?"bear":"none";
+          var mp='<span class="phase-tag '+pc+'">📍 '+phase.phase_cn+'</span>';
+          mp+='<span style="font-size:.73rem;color:var(--text2);">置信 '+(Number(phase.confidence||0)*100).toFixed(0)+'%</span>';
+
+          if(phase.weighted_bull!==undefined){
+            mp+='<div style="margin-top:6px;font-size:.73rem;color:var(--text2);">';
+            mp+='多 <b style="color:var(--green)">'+(Number(phase.weighted_bull||0)*100).toFixed(0)+'%</b> · ';
+            mp+='空 <b style="color:var(--red)">'+(Number(phase.weighted_bear||0)*100).toFixed(0)+'%</b>';
+            mp+='</div>';
+          }
+
+          var nm=manip.next_move||{};
+          if(nm.next_action){
+            mp+='<div class="insight-box"><div class="label">🧠 庄家下一步</div>';
+            mp+='<div class="action">'+nm.next_action+'</div><div class="info">';
+            if(nm.target_price)mp+='目标 <b>'+Number(nm.target_price).toFixed(4)+'</b> · ';
+            if(nm.stop_price)mp+='底线 <b>'+Number(nm.stop_price).toFixed(4)+'</b> · ';
+            if(nm.time_frame)mp+='时间 <b>'+nm.time_frame+'</b>';
+            mp+='</div></div>';
+          }
+          if(phase.signals&&phase.signals.length){
+            mp+='<div class="signals-list">';
+            for(var j=0;j<Math.min(phase.signals.length,6);j++)mp+='· '+phase.signals[j]+'<br>';
+            mp+='</div>';
+          }
+          document.getElementById("manip-content").innerHTML=mp;
+        }
+
+        toast("✅ 分析完成",false);
+      }catch(e){toast("❌ 分析失败: "+e.message,true);}
+      finally{btn.disabled=false;btn.innerHTML='⚡ 分析当前市场';}
+    }
+
+    // ─── K线图 ───
+    var chartInst=null;
+    function drawChart(kd){
+      if(!window.echarts||!kd.length)return;
+      var times=kd.map(function(d){return d.time;});
+      var ohlc=kd.map(function(d){return[d.open,d.close,d.low,d.high];});
+      var dom=document.getElementById("chart");
+      if(chartInst)chartInst.dispose();
+      chartInst=echarts.init(dom,'dark');
+      chartInst.setOption({
+        backgroundColor:'transparent',tooltip:{trigger:"axis"},
+        xAxis:{type:"category",data:times,axisLine:{lineStyle:{color:'#30363d'}},axisLabel:{color:'#8b949e',fontSize:9}},
+        yAxis:{scale:true,axisLine:{lineStyle:{color:'#30363d'}},axisLabel:{color:'#8b949e',fontSize:9},splitLine:{lineStyle:{color:'#21262d'}}},
+        grid:{left:44,right:10,top:8,bottom:22},
+        series:[{type:"candlestick",data:ohlc,itemStyle:{color:'#3fb950',color0:'#f85149',borderColor:'#3fb950',borderColor0:'#f85149'}}]
+      });
+      window.addEventListener('resize',function(){if(chartInst)chartInst.resize();});
+    }
+
+    // ─── 保存配置 ───
+    async function saveCfg(){
+      var payload={
+        SYMBOLS:document.getElementById("cfg-sym").value.trim(),
+        TARGET_TIMEFRAME:document.getElementById("cfg-tf").value,
+        DAYS:Number(document.getElementById("cfg-days").value),
+        INTERVAL_MINUTES:Number(document.getElementById("cfg-interval").value),
+        LOOKBACK:Number(document.getElementById("cfg-lookback").value),
+        AI_ENSEMBLE_ENABLED:document.getElementById("cfg-ai-ensemble").checked,
+        AI_ECO_MODE:document.getElementById("cfg-ai-eco").checked,
+        AI_TEMPERATURE:Number(document.getElementById("cfg-ai-temp").value),
+        AI_ECO_CONSENSUS_THRESHOLD:Number(document.getElementById("cfg-ai-threshold").value),
+        OI_LIMIT:Number(document.getElementById("cfg-oi-limit").value),
+        BIGDATA_LIMIT:Number(document.getElementById("cfg-bigdata-limit").value),
+        MTF_CONFLUENCE_ENABLED:document.getElementById("cfg-mtf").checked,
+        MANIPULATION_ENABLED:document.getElementById("cfg-manip").checked,
+        TECHNICAL_BATCH_ENABLED:document.getElementById("cfg-tech").checked,
+        SENTIMENT_ENABLED:document.getElementById("cfg-sentiment").checked,
+        ADVANCED_INDICATORS:document.getElementById("cfg-adv-ind").checked,
+        VOLATILITY_ADAPTIVE_THRESHOLD:document.getElementById("cfg-vol-adapt").checked,
+        MTF_TREND_TIMEFRAME:document.getElementById("cfg-mtf-trend").value,
+        MTF_STRUCTURE_TIMEFRAME:document.getElementById("cfg-mtf-struct").value,
+      };
+      try{
+        var r=await fetch("/api/config",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify(payload)});
+        var d=await r.json();
+        toast("✅ 设置已保存",false);
+      }catch(e){toast("保存失败: "+e.message,true);}
+    }
+
+    // ─── 初始化 ───
+    (async function(){
+      try{
+        var r=await fetch("/api/config");var d=await r.json();
+        var s=function(id,v){var el=document.getElementById(id);if(el&&v!==undefined){if(typeof v==="boolean")el.checked=v;else el.value=v;}};
+        if(d.SYMBOLS&&d.SYMBOLS.length)s("cfg-sym",d.SYMBOLS[0]);
+        s("cfg-tf",d.TARGET_TIMEFRAME);
+        s("cfg-days",d.DAYS);
+        s("cfg-interval",d.INTERVAL_MINUTES);
+        s("cfg-lookback",d.LOOKBACK);
+        s("cfg-ai-ensemble",d.AI_ENSEMBLE_ENABLED);
+        s("cfg-ai-eco",d.AI_ECO_MODE);
+        s("cfg-ai-temp",d.AI_TEMPERATURE||0.3);
+        s("cfg-ai-threshold",d.AI_ECO_CONSENSUS_THRESHOLD||2);
+        s("cfg-oi-limit",d.OI_LIMIT||96);
+        s("cfg-bigdata-limit",d.BIGDATA_LIMIT||48);
+        s("cfg-mtf",d.MTF_CONFLUENCE_ENABLED!==false);
+        s("cfg-manip",d.MANIPULATION_ENABLED!==false);
+        s("cfg-tech",d.TECHNICAL_BATCH_ENABLED!==false);
+        s("cfg-sentiment",d.SENTIMENT_ENABLED!==false);
+        s("cfg-adv-ind",d.ADVANCED_INDICATORS!==false);
+        s("cfg-vol-adapt",d.VOLATILITY_ADAPTIVE_THRESHOLD!==false);
+        s("cfg-mtf-trend",d.MTF_TREND_TIMEFRAME||"1D");
+        s("cfg-mtf-struct",d.MTF_STRUCTURE_TIMEFRAME||"4H");
+      }catch(e){}
+    })();
+  </script>
+</body>
+</html>

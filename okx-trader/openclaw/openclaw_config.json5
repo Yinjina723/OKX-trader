@@ -1,0 +1,35 @@
+{
+  // OpenClaw OKX 交易助理 配置模板
+  // 复制到 ~/.openclaw/openclaw.json 的 agents.list 中
+
+  agents: {
+    list: [
+      {
+        id: "okx-trader",
+        default: true,
+        name: "OKX 交易助理",
+        workspace: "<你的项目路径>",
+        tools: {
+          allow: ["exec", "read", "write", "edit"],
+          deny: ["browser"]
+        },
+        sandbox: {
+          mode: "off"
+        }
+      }
+    ]
+  },
+
+  bindings: [
+    // 绑定到 Telegram
+    { agentId: "okx-trader", match: { channel: "telegram" } },
+    // 绑定到 WhatsApp（需启用对应渠道）
+    // { agentId: "okx-trader", match: { channel: "whatsapp" } },
+  ],
+
+  messages: {
+    groupChat: {
+      mentionPatterns: ["@okx", "@交易"]
+    }
+  }
+}
