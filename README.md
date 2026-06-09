@@ -1,12 +1,25 @@
-# OKX AI 永续合约交易助手
+# OKX AI 交易助手 2.0
 
 > 🎯 **短线交易准确度 80%+** — AI 日线定方向 + 1H 机械信号入场 + 固定止盈止损
 
-基于 Python 的 OKX 永续合约（SWAP）智能交易系统，集成 **AI 深度分析 + 庄家行为检测 + 清算猎杀策略 + 资金护卫 + Web 仪表盘**。
+OKX 永续合约（SWAP）智能交易系统，提供 **桌面版** 和 **Skill 版** 两种使用方式。
 
 ---
 
-## 核心功能
+## 📦 两个版本
+
+| 版本 | 适用场景 | 特点 |
+|------|---------|------|
+| 🖥️ **桌面版** | 独立运行 / 服务器部署 | Python 完整系统 + Web 面板 + 回测 |
+| 🤖 **Skill 版** | AI IDE 内使用 | 一键安装到 CodeBuddy / Cursor 等，对话式交易 |
+
+---
+
+## 🖥️ 桌面版
+
+集成 **AI 深度分析 + 庄家行为检测 + 清算猎杀策略 + 资金护卫 + Web 仪表盘**。
+
+### 核心功能
 
 | 模块 | 功能说明 |
 |------|---------|
@@ -20,24 +33,22 @@
 | **回测系统** | 多币种批量回测，夏普/最大回撤/胜率/盈亏比 |
 | **本地服务器** | 本地 HTTP 服务，管理信号与交易状态 |
 
----
+### 快速开始
 
-## 快速开始
-
-### 1. 克隆项目
+#### 1. 克隆项目
 
 ```bash
 git clone https://github.com/Yinjina723/OKX-trader.git
 cd OKX-trader
 ```
 
-### 2. 安装依赖
+#### 2. 安装依赖
 
 ```bash
 pip install -r requirements.txt
 ```
 
-### 3. 配置 API 密钥
+#### 3. 配置 API 密钥
 
 编辑 `config.json`，填入密钥：
 
@@ -60,7 +71,7 @@ pip install -r requirements.txt
 | `HUNT_LEVERAGE_LEVELS` | 清算猎杀杠杆档位 |
 | `MAX_SIGNALS_PER_DAY` | 每日最大信号数 |
 
-### 4. 运行
+#### 4. 运行
 
 ```bash
 # 日线分析（命令行）
@@ -76,6 +87,33 @@ python decision_engine.py
 # 本地服务器
 python local_server.py
 ```
+
+---
+
+## 🤖 Skill 版
+
+无需手动运行脚本，在 AI IDE 中通过对话完成交易分析。
+
+### 支持的 IDE
+
+| IDE | 安装命令 |
+|-----|---------|
+| **CodeBuddy** | `bash okx-trader/install.sh codebuddy` |
+| **Cursor** | `bash okx-trader/install.sh cursor` |
+| **Windsurf** | `bash okx-trader/install.sh windsurf` |
+| **Claude Code** | `bash okx-trader/install.sh claude` |
+| **OpenClaw** | `bash okx-trader/install.sh openclaw` |
+
+### 使用方式
+
+安装后在 AI 对话框直接输入：
+
+- "分析 BTC 当前走势"
+- "检测庄家行为"
+- "生成今日交易信号"
+- "回测最近 30 天"
+
+
 
 ---
 
@@ -115,7 +153,16 @@ OKX-trader/
 ├── static/                     # 静态资源
 ├── data/                       # 历史数据缓存
 ├── output/                     # 分析输出
-├── okx-trader/                 # AI IDE Skill 包
+├── okx-trader/                 # 🤖 Skill 版安装包
+│   ├── SKILL.md                # Skill 入口定义
+│   ├── install.sh              # 一键安装脚本
+│   ├── scripts/                # 快捷脚本
+│   ├── references/             # 知识库文档
+│   ├── codebuddy/              # CodeBuddy 适配
+│   ├── cursor/                 # Cursor 适配
+│   ├── windsurf/               # Windsurf 适配
+│   ├── claude/                 # Claude Code 适配
+│   └── openclaw/               # OpenClaw 适配
 ├── OKxAPI整合/                  # OKX API 参考文档
 ├── requirements.txt            # Python 依赖
 └── README.md
