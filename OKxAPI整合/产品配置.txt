@@ -1,0 +1,769 @@
+产品配置
+用户可以通过 GET /api/v5/public/instruments 获取交易所的产品配置。
+后续的产品更新，例如最小变动价位变化、新上市，将通过websocket 产品 频道发布。
+市场数据
+用户能够从websocket频道接收实时的市场数据更新。
+bbo-tbt和books5是每10毫秒和100毫秒发布一次的深度快照。当订单簿没有变化时，系统不会发送新的快照。
+books、books-l2-tbt和books50-l2-tbt是增量订单簿频道，books每100毫秒发布订单簿的变化，books-l2-tbt和books50-l2-tbt每10毫秒发布订单簿的变化。为使用books-l2-tbt和books50-l2-tbt，用户需要在订阅之前登录，该功能分别限制VIP5或VIP4以上用户使用。
+在系统内部，订单簿数据每10毫秒被创建一次，并根据用户订阅的频道发送相关数据。用户从所有websocket连接和频道接收到的订单簿数据都是相同的。
+如果深度在间隔期间发生了如A->B->A一样的改变，则不会发送更新。如果订单簿长时间没有更新，快照频道会重推订单簿数据，增量订单簿频道会推送没有更新的信息，以通知用户连接仍处于活动状态。
+配置账户和子账户
+创建子账户和其API密钥后，用户可以在交易之前通过API配置主账户和子账户。
+账户配置
+用户可以通过以下的 REST API 查看当前账户/子账户的配置：
+GET /api/v5/account/config.
+API 会返回账户模式、持仓模式、自动借币设置、期权希腊值PA/BS以及许多其他与账户相关的信息。
+账户模式
+交易账户交易系统提供四个账户模式，分别为现货模式、合约模式、跨币种保证金模式以及组合保证金模式。
+更改账户模式仅限于在网页或手机app上进行。
+持仓模式
+交易所目前支持两种持仓模式。
+	
+买卖模式	只可持有开多或开空仓位。交易所会根据您所指定的持仓数量自动开/平仓
+开平仓模式	可同时持有开多仓位和开空仓位
+用户可以通过以下的 REST API 设置持仓模式（设置前需平掉所有仓位和没有挂单）：
+POST /api/v5/account/set-position-mode
+自动借币
+自动借币仅适用于跨币种保证金模式及组合保证金模式，且只限于在网页上打开或关闭。
+为偿还负债，交易所可能会自动转换其他货币的可用余额。风险指标可以从 GET /api/v5/account/balance 以及 WS 账户 端点的twap字段中找到。
+期权希腊值 PA/BS
+用户可以通过以下的 REST API 设置期权希腊值 PA/BS：
+POST /api/v5/account/set-greeks
+全仓/逐仓保证金模式
+交易账户交易系统的全仓/逐仓设置更为弹性，用户可以同时以全仓和逐仓交易同一产品。
+因此，API并没有提供设置不同仓位保证金模式的功能。取而代之，用户需要在下单时使用tdMode字段指定该订单的保证金模式（交易模式）。
+获取杠杆倍数
+用户可以通过以下的 REST API 获取杠杆倍数：
+GET /api/v5/account/leverage-info
+目前杠杆倍数没有全局设置，同一产品可以有几种杠杆倍数的设置场景。
+币币杠杆：
+账户模式	保证金模式	层面
+现货模式	全仓	产品(币对)
+	逐仓	产品(币对)
+合约模式	全仓	产品(币对)
+	逐仓	产品(币对)
+跨币种保证金模式	全仓	币种
+	逐仓	产品(币对)
+其他产品类型：
+持仓模式	产品类型	保证金模式	层面
+买卖模式	交割	全仓	交易品种
+		逐仓	交易品种
+	永续	全仓	交易品种
+		逐仓	交易品种
+开平仓模式	交割	全仓	交易品种
+		逐仓	交易品种 + 持仓方向
+	永续	全仓	交易品种
+		逐仓	交易品种 + 持仓方向
+设置杠杆倍数
+在获取杠杆倍数之后，用户可根据需要进行设置：
+POST /api/v5/account/set-leverage
+用户可以运用上述两个API接口，在交易前预先设置每个产品的杠杆倍数。
+示例：
+假设我们有以下的设置和需求：
+账户模式：跨币种保证金
+持仓模式：买卖模式
+需要设置杠杆倍数为 3.0 的产品：
+BTC-USDT、EOS-USDT、LTC-BTC、LTC-USDT
+BTC-USD-210319、BTC-USD-210326、BTC-USD-210625
+BTC-USD-SWAP
+以上产品只使用全仓保证金模式
+币币/币币杠杆的设置层面为币种，用户可以截取币种去逐一设置，即BTC、USDT、EOS和LTC。
+设置BTC币种杠杆倍数为 3.0 的请求体示例（适用于卖出BTC-USDT和买入LTC-BTC）：
+{
+  "lever": "3.0",
+  "mgnMode": "cross",
+  "ccy": "BTC"
+}
+设置 USDT、EOS 和 LTC 的请求体也很类似，不在此一一列举。
+下一步就是设置BTC-USD-210319、BTC-USD-210326和BTC-USD-210625的杠杆倍数。
+因为这三个产品都有共同的交易品种（即BTC-USD），用户只需在这三个产品中选其一设置杠杆倍数。
+{
+  "lever": "3.0",
+  "mgnMode": "cross",
+  "instId": "BTC-USD-210326"
+}
+最后，用户需要设置BTC-USD-SWAP的杠杆倍数。
+虽然交易品种和以上的交割一样为BTC-USD，但交割和永续的杠杆倍数设置是分开独立的，用户仍需要发送以下请去设置：
+{
+  "lever": "3.0",
+  "mgnMode": "cross",
+  "instId": "BTC-USD-SWAP"
+}
+在发送了以上共 6 个 API REST 请求后，这 8 个产品杠杆倍数的设置便完成了。
+订单管理
+交易模式
+交易账户交易系统的全仓/逐仓设置更为弹性，用户可以同时以全仓和逐仓交易同一产品。因此，用户需要在下单时指定该订单的交易模式（tdMode字段）。
+各种情景下tdMode所需的值：
+持仓模式	产品类型	保证金模式	交易模式(tdMode)
+现货模式	币币	(N/A)	cash
+	期权	(N/A)	cash
+合约模式	币币	(N/A)	cash
+	币币杠杆	全仓	cross
+		逐仓	isolated
+	交割/永续/期权	全仓	cross
+		逐仓	isolated
+跨币种保证金	币币/币币杠杆	全仓	cross
+	币币杠杆	逐仓	isolated
+	交割/永续/期权	全仓	cross
+		逐仓	isolated
+示例
+假设我们有以下的设置和订单需求：
+账户模式：跨币种保证金
+持仓模式：买卖模式
+产品：BTC-USDT-SWAP
+保证金模式：全仓
+订单方向：买入（开多）
+订单类型：限价单
+委托价格：50,912.4 USDT
+委托数量：1 张
+查找上表得知tdMode字段应填上cross。
+订阅订单频道
+下单前，用户应先使用 WebSocket 订阅 订单 频道，这样才能够监察订单状态（如等待成交、完全成交）和作出相应的操作（如在完全成交后下新单）。
+订单频道提供多种维度的订阅。要订阅以上 BTC-USDT-SWAP 订单的数据，用户可在连接到和登入私有 WebSocket 后，传送下表任一请求：
+	产品类型	产品类型 + 交易品种
+(仅限衍生产品)	产品类型 + 产品 ID
+请求	{
+  "op": "subscribe",
+  "args": [
+    {
+      "channel": "orders",
+      "instType": "SWAP"
+    }
+  ]
+}	{
+  "op": "subscribe",
+  "args": [
+    {
+      "channel": "orders",
+      "instType": "SWAP",
+      "instFamily": "BTC-USDT"
+    }
+  ]
+}	{
+  "op": "subscribe",
+  "args": [
+    {
+      "channel": "orders",
+      "instType": "SWAP",
+      "instId": "BTC-USDT-SWAP"
+    }
+  ]
+}
+成功返回	{
+  "event": "subscribe",
+  "arg": {
+    "channel": "orders",
+    "instType": "SWAP"
+  }
+}	{
+  "event": "subscribe",
+  "args": [
+    {
+      "channel": "orders",
+      "instType": "SWAP",
+      "instFamily": "BTC-USDT"
+    }
+  ]
+}	{
+  "event": "subscribe",
+  "args": [
+    {
+      "channel": "orders",
+      "instType": "SWAP",
+      "instId": "BTC-USDT-SWAP"
+    }
+  ]
+}
+用户亦可以把instType参数填上ANY，一次性订阅所有产品类型的订单更新。
+注：订单频道不设首次订阅全量数据推送，只会在订单状态改变时（如由等待成交到撤单成功）推送该订单的更新。
+换言之，用户无法在订阅订单频道时得知当时的订单数据。要获取订阅订单频道前未完成订单的数据，可通过以下的 REST API 查看：
+GET /api/v5/trade/orders-pending
+下单
+为了系统能够更容易地识别订单，我们建议用户在下单时填上客户自定义订单 ID（clOrdId字段）。客户自定义订单 ID 需由字母与数字组成，区分大小写，最长 32 位。
+cloOrdId唯一性检查仅适用于所有挂单，但我们扔推荐用户始终使用唯一的cloOrdId以便于故障排除等工作。
+此示例我们会在clOrdId字段填上 testBTC0123。
+在订阅订单频道后，用户便可以准备 BTC-USDT-SWAP 订单的下单。
+用户可通过 REST 和 WebSocket 去下单。
+REST API
+用户可以通过以下的 REST API 下单，服务器收到请求后会返回订单 ID（ordId）。
+REST API	POST /api/v5/trade/order
+请求体	{
+  "instId": "BTC-USDT-SWAP",
+  "tdMode": "cross",
+  "clOrdId": "testBTC0123",
+  "side": "buy",
+  "ordType": "limit",
+  "px": "50912.4",
+  "sz": "1"
+}
+成功返回	{
+  "code": "0",
+  "msg": "",
+  "data": [
+    {
+      "clOrdId": "testBTC0123",
+      "ordId": "288981657420439575",
+      "tag": "",
+      "sCode": "0",
+      "sMsg": ""
+    }
+  ]
+}
+注：这只代表交易所已成功收取请求，并把订单 ID 指派到该订单。此时订单有可能还没到撮合系统，用户需要进一步检查订单状态去确认。
+WebSocket
+用户亦可以通过 WebSocket 下单，理论上比 REST 更有效率及节约资源。
+由于 WebSocket 操作为异步通信，用户需要提供信息 ID（id）以便识别其返回。
+于私有 WebSocket 登录后，传送以下 WebSocket 信息：
+{
+  "id": "NEWtestBTC0123",
+  "op": "order",
+  "args": [
+    {
+      "instId": "BTC-USDT-SWAP",
+      "tdMode": "cross",
+      "clOrdId": "testBTC0123",
+      "side": "buy",
+      "ordType": "limit",
+      "px": "50912.4",
+      "sz": "1"
+    }
+  ]
+}
+服务器收到请求后，会连同信息 ID（即 NEWtestBTC012）返回结果，并附上交易所指派的订单 ID（ordId）：
+{
+  "id": "NEWtestBTC0123",
+  "op": "order",
+  "data": [
+    {
+      "clOrdId": "",
+      "ordId": "288981657420439575",
+      "tag": "",
+      "sCode": "0",
+      "sMsg": ""
+    }
+  ],
+  "code": "0",
+  "msg": ""
+}
+注：这只代表交易所已成功收取请求，并把订单 ID 指派到该订单。此时订单有可能还没到撮合系统，用户需要进一步检查订单状态去确认。
+检查订单状态
+下单后，若订单未返回任何错误 ("sCode": "0")。用户会在 WebSocket 订单频道收到该订单状态为live的信息。
+信息示例（以产品类型 + 交易品种维度订阅订单频道）：
+{
+  "arg": {
+    "channel": "orders",
+    "instType": "SWAP",
+    "instFamily": "BTC-USDT"
+  },
+  "data": [
+    {
+      "accFillSz": "0",
+      "amendResult": "",
+      "avgPx": "",
+      "cTime": "1615170596148",
+      "category": "normal",
+      "ccy": "",
+      "clOrdId": "testBTC0123",
+      "code": "0",
+      "fee": "0",
+      "feeCcy": "USDT",
+      "fillPx": "",
+      "fillSz": "0",
+      "fillTime": "",
+      "instId": "BTC-USDT-SWAP",
+      "instType": "SWAP",
+      "lever": "3",
+      "msg": "",
+      "ordId": "288981657420439575",
+      "ordType": "limit",
+      "pnl": "0",
+      "posSide": "net",
+      "px": "50912.4",
+      "rebate": "0",
+      "rebateCcy": "USDT",
+      "reqId": "",
+      "side": "buy",
+      "slOrdPx": "",
+      "slTriggerPx": "",
+      "state": "live",
+      "sz": "1",
+      "tag": "",
+      "tdMode": "cross",
+      "tpOrdPx": "",
+      "tpTriggerPx": "",
+      "tradeId": "",
+      "uTime": "1615170596148"
+    }
+  ]
+}
+订单完全成交后，用户会收到以下的推送信息示例，订单状态变更为filled，并填上其他有关成交的字段。
+如果订单部分或全部成交，websocket将分别返回 state = partially_filled and filled。
+对于立即成交并取消剩余（IOC）、全部成交或立即取消（FOK）以及仅挂单的订单（post only），这些订单可能会被撮合引擎拒绝，用户将收到live然后是canceled的状态。
+用户订单可能会由于各种原因被系统取消，例如清算或自成交。用户可以参考 cancelSource 以确定订单被取消的原因。
+一个订单的终止状态为canceled或filled。
+订单的每一笔成交都会被系统赋予一个成交 ID (tradeId)，用于与持仓对账。
+{
+  "arg": {
+    "channel": "orders",
+    "instType": "SWAP",
+    "instFamily": "BTC-USDT"
+  },
+  "data": [
+    {
+      "accFillSz": "1",
+      "amendResult": "",
+      "avgPx": "50912.4",
+      "cTime": "1615170596148",
+      "category": "normal",
+      "ccy": "",
+      "clOrdId": "testBTC0123",
+      "code": "0",
+      "fee": "-0.1018248",
+      "feeCcy": "USDT",
+      "fillPx": "50912.4",
+      "fillSz": "1",
+      "fillTime": "1615170598021",
+      "instId": "BTC-USDT-SWAP",
+      "instType": "SWAP",
+      "lever": "3",
+      "msg": "",
+      "ordId": "288981657420439575",
+      "ordType": "limit",
+      "pnl": "0",
+      "posSide": "net",
+      "px": "50912.4",
+      "rebate": "0",
+      "rebateCcy": "USDT",
+      "reqId": "",
+      "side": "buy",
+      "slOrdPx": "",
+      "slTriggerPx": "",
+      "state": "filled",
+      "sz": "1",
+      "tag": "",
+      "tdMode": "cross",
+      "tpOrdPx": "",
+      "tpTriggerPx": "",
+      "tradeId": "60477021",
+      "uTime": "1615170598022"
+    }
+  ]
+}
+可能的订单状态：
+在入口处被拒绝，sCode不为零，websocket订单频道无更新推送
+下单并立即全部成交： live -> filled
+下单并立即通过多笔交易成交： live -> partially_filled -> ... -> filled
+下单但立即被撮合引擎取消（如 IOC、FOK、仅挂单）： live -> canceled （取消原因可从 cancelSource 查询）
+下单为 IOC，部分成交后因价格深度不足而被系统取消： live -> partially_filled -> canceled
+改单
+改单接口支持所有产品类型的改单，允许用户修改订单的价格（newPx字段）和/或数量（newSz字段）。另外 API 也提供cxlOnFail参数，设置订单修改失败时自动撤单的操作。
+REST:
+POST /api/v5/trade/amend-order
+WebSocket 业务操作请求参数：
+"op": "amend-order"
+与下单相似，用户应会收到服务器相应 REST / WebSocket 的成功返回，然后于 WebSocket 订单频道收到已填上amendResult字段的订单推送更新。
+注：订单完全成交或撤单已成功时不能改单。
+成功响应仅表示交易所已收到该请求，用户应参考websocket订单频道以进行确认。
+撤单
+用户可以以类似的方式，通过 REST 或 WebSocket 撤单。
+REST:
+POST /api/v5/trade/cancel-order
+WebSocket 业务操作请求参数：
+"op": "cancel-order"
+同样，用户应会收到服务器相应 REST / WebSocket 的成功返回。当用户从 WebSocket 订单频道收到订单状态为 canceled 的推送更新时，才代表订单撤单成功。
+注：订单完全成交或撤单已成功时不能撤单。
+成功响应仅表示交易所已收到该请求，用户应参考websocket订单频道以进行确认。
+批量操作
+下单、改单、撤单均支持批量操作，每次最多 20 张订单。批量操作的订单可包括不同的产品类型。
+REST:
+	
+下单	POST /api/v5/trade/batch-orders
+改单	POST /api/v5/trade/amend-batch-orders
+撤单	POST /api/v5/trade/cancel-batch-orders
+WebSocket 业务操作请求参数：
+	
+下单	"op": "batch-orders"
+改单	"op": "batch-amend-orders"
+撤单	"op": "batch-cancel-orders"
+批量操作容许部分订单操作成功。在收到返回后，用户应检查返回结果内每个订单的sCode和sMsg字段来判段订单的执行结果。
+订单时间戳
+订单数据中有多个时间戳，供用户跟踪订单状态和延迟。
+cTime 是订单管理系统在风险检查后的订单创建时间。
+uTime 是订单管理系统最后一次更新订单的时间。在订单修改、成交和取消后进行更新。
+fillTime 是订单成交的时间。fillTime 与公共交易数据的时间相同。
+inTime 是 WebSocket / REST 网关接收请求时的时间戳。REST接口返回的时间是请求验证后的时间。
+outTime 是 WebSocket / REST 网关发送响应时的时间戳。
+分页
+欧易提供分页功能，以帮助用户从海量数据中轻松获得他们想要的数据。相关的请求参数如下：
+参数名	类型	是否必须	描述
+before	String	否	请求此ID之后（更新的数据）的分页内容，传的值为对应接口的ordId, billId, tradeId, ts etc.
+after	String	否	请求此ID之前（更旧的数据）的分页内容，传的值为对应接口的ordId, billId, tradeId, ts etc.
+limit	String	否	返回结果的数量，最大为100，默认100条
+请参阅以下功能提示及示例，以便更好地理解该功能。假设原始数据为 [10, 9, 8, 7, 6, 5, 4, 3, 2, 1]。
+提示	示例
+无论用户如何输入请求参数，总是返回最新数据	我们总是在最开始返回新数据，例如 [10, 9, 8, 7, ...]
+分页时，不包含before以及after	若 before=6，after=10，返回的数据将会是 [9, 8, 7]
+若before及after之间的数据量超过limit，返回靠近after的数据记录	若 before=2，after=9，limit=3，返回的数据将会是 [8, 7, 6]
+若仅传入before，不传入after，靠近before的数据将被返回	若 before=6，limit=3，返回的数据将会是 [9, 8, 7]
+
+该功能不适用于仓位历史接口，相同参数，仓位历史接口将返回 [10, 9, 8]，不靠近before返回
+
+为了获取特定时间范围内的数据，我们还提供了时间戳过滤功能，应用于before/after已被用于ID分页的场景。请求参数如下：
+参数名	类型	是否必须	描述
+begin	String	No	筛选的开始时间戳，Unix 时间戳为毫秒数格式，如 1597026383085
+end	String	No	筛选的结束时间戳，Unix 时间戳为毫秒数格式，如 1597027383085
+limit	String	No	分页返回的结果集数量，最大为100，不填默认返回100条
+begin/end的使用方法与before/after略有不同。
+提示	示例
+过滤时间戳时，包含begin以及end	若 begin=6，end=10，返回的数据将会是 [10, 9, 8, 7, 6]
+若begin及end之间的数据量超过limit，返回靠近end的数据记录。
+若仅传入begin，不传入end，靠近begin的数据将被返回	若 begin=6，limit=3，返回的数据将会是 [8, 7, 6]
+
+该功能不适用于成交明细接口，相同参数，成交明细接口将返回[10, 9, 8]，不靠近begin返回。
+
+若begin/end以及before/after被同时传入，我们将先根据begin/end进行时间戳过滤，并根据before/after对结果进行分页。
+
+拥有分页功能的交易接口罗列如下。
+GET / 获取未成交订单列表
+GET / 获取历史订单记录（近七天）
+GET / 获取历史订单记录（近三个月）
+GET / 获取成交明细（近三天）
+GET / 获取成交明细（近三个月）
+账单流水查询（近七天）
+账单流水查询（近三月）
+查看历史持仓信息
+自成交保护
+交易系统会以母账户维度实施强制自成交保护，同一母账户下所有账户，包括母账户本身和所有子账户，都无法进行自成交。订单的默认STP模式为Cancel Maker，用户亦可以通过下单接口的stpMode参数指定订单的STP模式。
+OKX 将支持 3 种 STP 模式（stpMode），分别是 cancel_maker、cancel_taker 和 cancel_both。
+注：强制自成交保护功能仅适用于所有用户，所有订单类型，以及所有订单簿交易产品。
+自成交保护模式
+OKX 为用户提供了三种模式，定义了如何阻止自成交，这些模式基于taker订单当中的配置。
+取消maker单
+这是默认的 STP 模式。为防止自成交，maker单将被取消，然后taker单将继续与深度中的下一个订单成交。
+取消taker单
+为防止自成交，taker单将被取消。若用户的maker单在深度中排序较后，taker单将被部分成交然后取消。若FOK订单导致了自成交，它将直接被整体取消。
+取消两者
+为防止自成交，taker单和maker单都将被取消。若用户的maker单在深度中排序较后，那么taker单将被部分成交，然后taker单的剩余部分以及maker单会被取消。FOK订单在此模式中不受支持。只有一个报价单及询价单会被取消。
+交易账户和持仓
+账户
+WebSocket 订阅
+我们建议使用 WebSocket 订阅 账户 频道收取账户更新。账户频道设有可选参数ccy，让用户可以仅收取指定账户币种的信息。
+该端点返回用户以美元为单元的资产价值，以及其他由于标识价格变化而持续更新的参数。OKX在估值变化时定期向用户发送更新数据。
+连接到私有 WebScoket 和登入后的请求和返回示例：
+	账户	账户（仅指定的币种）
+请求	{
+  "op": "subscribe",
+  "args": [
+    {
+      "channel": "account"
+    }
+  ]
+}	{
+  "op": "subscribe",
+  "args": [
+    {
+      "channel": "account",
+      "ccy": "BTC"
+    }
+  ]
+}
+成功返回	{
+  "event": "subscribe",
+  "arg": {
+    "channel": "account"
+  }
+}	{
+  "event": "subscribe",
+  "arg": {
+    "channel": "account",
+    "ccy": "BTC"
+  }
+}
+首次订阅全量数据
+与订单频道不同，账户频道首次订阅会推送全量数据，推送币种层面资产不为 0 的账户信息。币种层面资产不为 0 指币种总权益（eq）、可用保证金（availEq）、可用余额（availBal）任一字段不为 0。
+假设账户的 BTC 和 USDT 币种层面资产不为 0，而账户模式为跨币种保证金模式或组合保证金模式，用户应收到账户频道以下的信息示例：
+账户	账户（仅指定的币种）
+{
+  "arg": {
+    "channel": "account"
+  },
+  "data": [
+    {
+      "adjEq": "30979.1086748182657014",
+      "details": [
+        {
+          "availBal": "",
+          "availEq": "18962.59868274799",
+          "ccy": "USDT",
+          "crossLiab": "0",
+          "disEq": "18978.5272656414983116",
+          "eq": "18962.59868274799",
+          "frozenBal": "0",
+          "interest": "0",
+          "isoEq": "0",
+          "isoLiab": "0",
+          "liab": "0",
+          "mgnRatio": "",
+          "ordFrozen": "0",
+          "upl": "0"
+        },
+        {
+          "availBal": "",
+          "availEq": "0",
+          "ccy": "BTC",
+          "crossLiab": "0.509575622217854",
+          "disEq": "-25408.4180739947324516",
+          "eq": "-0.5096053466363398",
+          "frozenBal": "0",
+          "interest": "0.0000297244184858",
+          "isoEq": "0",
+          "isoLiab": "0",
+          "liab": "0.509575622217854",
+          "mgnRatio": "",
+          "ordFrozen": "0",
+          "upl": "0"
+        }
+      ],
+      "imr": "8469.4726913315758219",
+      "isoEq": "0",
+      "mgnRatio": "39.9556239578938079",
+      "mmr": "762.252542219842",
+      "totalEq": "44480.5383005753085878",
+      "uTime": "1615190165641"
+    }
+  ]
+}	{
+  "arg": {
+    "channel": "account",
+    "ccy": "BTC"
+  },
+  "data": [
+    {
+      "adjEq": "30979.1086748182657014",
+      "details": [
+        {
+          "availBal": "",
+          "availEq": "0",
+          "ccy": "BTC",
+          "crossLiab": "0.509575622217854",
+          "disEq": "-25408.4180739947324516",
+          "eq": "-0.5096053466363398",
+          "frozenBal": "0",
+          "interest": "0.0000297244184858",
+          "isoEq": "0",
+          "isoLiab": "0",
+          "liab": "0.509575622217854",
+          "mgnRatio": "",
+          "ordFrozen": "0",
+          "upl": "0"
+        }
+      ],
+      "imr": "8469.4726913315758219",
+      "isoEq": "0",
+      "mgnRatio": "39.9556239578938079",
+      "mmr": "762.252542219842",
+      "totalEq": "44480.5383005753085878",
+      "uTime": "1615190165641"
+    }
+  ]
+}
+后续推送
+之后，用户会根据以下情况收到账户数据推送：
+	
+事件触发推送	下单、撤单等事件会触发推送。多项事件（如同时间有多个订单成交）有可能会聚合成单个账户信息推送。仅推送受事件变更的币种，包括币种资产变为 0。
+定时推送	定时推送，目前为每 5 秒推送一次。与首次订阅一样，推送全量数据，即推送所有币种（或ccy参数指定的币种）层面资产不为 0 的账户信息。
+REST API
+用户亦可以通过 REST API 查看币种层面资产不为 0 的账户余额：
+GET /api/v5/account/balance
+REST API 亦提供可选参数ccy，支持单个币种（如BTC）或多个以逗号分隔的币种（如 BTC,USDT,ETH）查询，最多 20 个。
+示例：
+GET /api/v5/account/balance?ccy=BTC,USDT,ETH
+当用户于ccy参数指定币种时，无论该币种层面资产是否为 0，REST API 均会返回该币种的数据，与 WebSocket 账户频道不同。这只适用于曾经持有的币种。
+最大可用数量
+跨币种保证金模式下，启用自动借币能让用户以多于币种余额的数量买入/卖出产品。
+在这种情况下，用户便会想知道该产品最大的买入/卖出数量为多少。用户可以轮询以下的 REST API 得知最大可用数量（包括可用余额和交易所的最大可借）：
+GET /api/v5/account/max-avail-size
+跨币种保证金模式下，BTC-USDT 全仓的请求和返回示例：
+请求	GET /api/v5/account/max-avail-size?instId=BTC-USDT&tdMode=cross
+成功返回	{
+  "code": "0",
+  "data": [
+    {
+      "availBuy": "213800.4239369798722052",
+      "availSell": "1.3539405224369181",
+      "instId": "BTC-USDT"
+    }
+  ],
+  "msg": ""
+}
+币币的availBuy为计价货币，availSell为交易货币。
+以上的返回结果表示 BTC-USDT 最大买入可用数量为 213,800.42 USDT，最大卖出可用数量为 1.35394052 BTC。这应与网页上交易时显示的数量一样。
+最大可转余额
+为了获得交易账户或是某个子账户的最大可转余额，用户可以通过 GET /api/v5/account/max-withdrawal 获取余额。
+此端点返回的数据考虑了未偿还的贷款和使用中的保证金。
+余额和持仓
+当特定事件（如订单成交、资金转移）被触发时，数据将被推送。
+账户余额和持仓频道适用于获取账户余额和仓位资产的变化。
+如果用户拥有了太多货币，且数据太大以至于无法在单个推送中发送，它将被拆分为多个消息。
+在账户余额和持仓发生变化时，与账户频道和持仓频道相比，此频道的字段较少，以便以最低延迟将更改推送给客户。
+持仓
+用户应该使用 WebSocket 获取持仓信息更新。
+WebSocket 订阅
+与订单频道类似，持仓频道提供多种维度的订阅。
+该端点返回标识价格以及其他持续变化的参数。OKX会定期向用户推送数据更新。
+要订阅以上 BTC-USDT-SWAP 持仓的数据，用户可在连接到和登入私有 WebSocket 后，传送下表任一请求：
+	产品类型	产品类型 + 交易品种
+(仅限衍生产品)	产品类型 + 产品 ID
+请求	{
+  "op": "subscribe",
+  "args": [
+    {
+      "channel": "positions",
+      "instType": "SWAP"
+    }
+  ]
+}	{
+  "op": "subscribe",
+  "args": [
+    {
+      "channel": "positions",
+      "instType": "SWAP",
+      "instFamily": "BTC-USDT"
+    }
+  ]
+}	{
+  "op": "subscribe",
+  "args": [
+    {
+      "channel": "positions",
+      "instType": "SWAP",
+      "instId": "BTC-USDT-SWAP"
+    }
+  ]
+}
+成功 返回	{
+  "event": "subscribe",
+  "arg": {
+    "channel": "positions",
+    "instType": "SWAP"
+  }
+}	{
+  "event": "subscribe",
+  "args": [
+    {
+      "channel": "positions",
+      "instType": "SWAP",
+      "instFamily": "BTC-USDT"
+    }
+  ]
+}	{
+  "event": "subscribe",
+  "args": [
+    {
+      "channel": "positions",
+      "instType": "SWAP",
+      "instId": "BTC-USDT-SWAP"
+    }
+  ]
+}
+用户亦可以把instType参数填上ANY，一次性订阅所有产品类型的持仓更新。
+首次订阅全量数据
+持仓频道首次订阅会推送全量数据，推送持仓数量不为 0 的持仓信息。持仓数量不为 0 指 pos 字段大于或小于 0。
+我们继续沿用先前章节的 BTC-USDT-SWAP 全仓订单（买卖模式）例子。在订阅持仓频道（产品类型 + 交易品种维度）后，用户应收到以下的推送信息示例：
+{
+  "arg": {
+    "channel": "positions",
+    "instType": "SWAP",
+    "instFamily": "BTC-USDT"
+  },
+  "data": [
+    {
+      "adl": "2",
+      "availPos": "",
+      "avgPx": "50912.4",
+      "cTime": "1615170596148",
+      "ccy": "USDT",
+      "imr": "165.15734103333082",
+      "instId": "BTC-USDT-SWAP",
+      "instType": "SWAP",
+      "interest": "0",
+      "last": "51000",
+      "lever": "3",
+      "liab": "",
+      "liabCcy": "",
+      "liqPx": "",
+      "margin": "",
+      "mgnMode": "cross",
+      "mgnRatio": "0",
+      "mmr": "1.98188809239997",
+      "optVal": "",
+      "pTime": "1615196199624",
+      "pos": "1",
+      "posCcy": "",
+      "posId": "287999792370819074",
+      "posSide": "net",
+      "tradeId": "60477021",
+      "uTime": "1615170598022",
+      "upl": "0.4520230999924388",
+      "uplRatio": "0.0027394232555804"
+    }
+  ]
+}
+后续推送
+之后，与账户频道相似，用户会根据以下情况收到持仓数据推送：
+	
+事件触发推送	开仓、平仓等事件会触发推送。多项事件（如同时间有多个订单成交）有可能会聚合成单个持仓信息推送。
+仅推送受事件变更的持仓，包括平仓（即持仓数量变为 0）。
+定时推送	定时推送，目前为每 5 秒推送一次。与首次订阅一样，推送全量数据，即推送订阅维度上指定的所有不为 0 的持仓。
+持仓 ID
+您可能会发现每项持仓数据均设有持仓 ID 字段（posId）。这字段可以用作填写 REST API 可选查询参数，会在下一章节讲解。
+持仓 ID 由mgnMode+posSide+instId+ccy这几个字段所产生，可让您唯一地识别同一个账户内的持仓。持仓 ID 不会因平仓及再开仓而变动。如果很久没有仓位的话，系统可能产生一个新的持仓 ID。
+REST API
+用户亦可以通过 REST API 查看持仓数量不为 0 的持仓信息：
+GET /api/v5/account/positions
+REST API 提供以下维度查询：
+维度	示例
+产品类型	GET /api/v5/account/positions?instType=SWAP
+产品 ID	GET /api/v5/account/positions?instId=BTC-USDT-SWAP
+持仓 ID（单个）	GET /api/v5/account/positions?posId=287999792370819074
+持仓 ID（多个，最多 20 个）	GET /api/v5/account/positions?posId=287999792370819074,289098391880081414
+值得一提的是，当用户于posId参数指定持仓时，无论持仓是否已平仓，REST API 均会返回该持仓的数据，与 WebSocket 持仓频道不同。这只适用于曾经开仓的持仓。
+订单成交推送与持仓的对账
+运用持仓频道新增的最新成交 ID （tradeId字段），用户可以进行订单频道成交推送与持仓的对账。这样做法其中一个案例就是用户想从订单成交推算出现有的持仓数量。
+成交 ID 的唯一性基于每一产品 ID (instId)。
+新的订单成交均会指派较新的成交 ID。利用这一特性，用户可用成交 ID 匹配相应的持仓/订单成交，并以成交 ID 的数字比较哪项数据较新。
+不过，用户需要注意下列事项：
+多个持仓变化有可能会聚合成单个持仓信息推送，即持仓信息只有最新的成交 ID，并非每一个订单成交更新均能与持仓信息匹配
+强平/强减或 ADL 不会推送订单更新（因订单为系统所拥有）
+因强平/强减或 ADL 而触发的持仓更新不会更新 tradeId
+要准确地进行订单成交推送与持仓的对账，用户必需考虑以上的注意事项，除比较tradeId外还需比较持仓数量（或比较持仓更新时间uTime字段）。
+我们来看看以下的推送序列示例。假设下列都是同样产品及同样保证金模式的数据，持仓模式为买卖模式。
+序列	频道	数据	对账后的持仓
+1	order (订单)	fillSz=20, side=buy, tradeId=150	20
+2	positions (持仓)	pos=20, tradeId=150, uTime=1614859751636	20
+3	positions (持仓)	pos=18, tradeId=151, uTime=1614859752637	18
+4	order (订单)	fillSz=2, side=sell, tradeId=151	18
+5	order (订单)	fillSz=3, side=sell, tradeId=156	15
+6	order (订单)	fillSz=1, side=sell, tradeId=158	14
+7	positions (持仓)	pos=10, tradeId=163, uTime=1614859755037	10
+8	order (订单)	fillSz=1, side=sell, tradeId=159	10
+9	order (订单)	fillSz=3, side=sell, tradeId=163	10
+10	positions (持仓)	pos=10, tradeId=163, uTime=1614859755037	10
+11	positions (持仓)	pos=6, tradeId=163, uTime=1614866547430	6
+从中观察，我们得知：
+收到 tradeId=163 的单个持仓推送 #7，即代表与持仓对账时，可忽略tradeId<=163 的订单推送。换言之，我们可忽略订单推送 #8 和 #9
+持仓推送 #10 与 #7 的tradeId和pos（和uTime）一样，这表示我们可以认为 #10 为持仓每 10 秒的定时推送
+持仓推送 #11 具同样的tradeId=163 但持仓数量有变化（uTime也较新），我们可推断这推送是由强减或 ADL 触发
+标识符
+标识符	描述
+ordId	订单ID，全局唯一
+clOrdId	客户自定义订单ID，所有交易产品挂单维度唯一
+billId	账单ID，全局唯一
+tradeId	最新成交ID，交易产品维度唯一
+在强平、自动减仓场景下，tradeId字段的值为负数，以便和其他撮合成交场景区分
+posId	持仓ID，由mgnMode+posSide+instId+ccy这几个字段所产生，可唯一地识别同一个账户内的持仓。
+持仓 ID 不会因平仓及再开仓而变动。如果很久没有仓位的话，系统可能产生一个新的持仓 ID；切换账户模式、仓位模式时，系统也会产生一个新的持仓ID。
+系统状态
+用户可以通过 GET /api/v5/system/status 获取交易所状态。
+后续的状态更新将从websocket status 频道发布。
+由计划系统维护引起的短暂不可用（<5秒）和WebSocket闪断连接（用户可以立即重连）将不会公布。此类维护只会在市场波动性低的时期进行。

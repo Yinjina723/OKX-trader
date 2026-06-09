@@ -1,0 +1,766 @@
+待发布内容
+信号复制新增 API 接口
+最后更新：2026 年 5 月 14 日
+OKX 将为信号复制（订单分享）功能新增 API 支持。API 用户现在可以通过传入订单 ID，以编程方式生成通用分享短链。短链将订单参数（合约、方向、杠杆、价格、止盈止损等）存储在服务端。接收方打开链接后，OKX App 下单面板将自动填入对应参数。
+此功能仅支持 USDT 保证金永续合约，使用前需确保账户已开启信号复制功能。
+生成信号复制短链
+生成信号复制短链
+新增接口 POST /api/v5/copytrade/create-sgl-link。
+请求体中传入 orderId 和 instId，订单必须属于请求账户。
+仅支持 USDT 保证金永续合约（instId 以 -USDT-SWAP 结尾），其他产品类型将返回错误。
+返回 shortLink——通用 OKX App 短链，接收方打开后下单面板将自动填入对应订单参数。
+限速：每用户每秒 10 次。
+请求示例
+POST /api/v5/copytrade/create-sgl-link
+body{
+    "orderId": "3556007031710728192",
+    "instId": "ADA-USDT-SWAP"}
+请求参数
+参数名	类型	是否必须	描述
+orderId	String	是	订单 ID，必须属于请求账户。
+instId	String	是	产品 ID，如 BTC-USDT-SWAP，仅支持 USDT 保证金永续合约。
+返回示例
+{
+    "code": "0",
+    "data": [
+        {
+            "shortLink": "https://www.okx.com/ul/1xJ7nV"
+        }
+    ],
+    "msg": ""}
+返回参数
+参数名	类型	描述
+shortLink	String	通用分享短链。接收方在 OKX App 中打开该链接后，下单面板将自动填入对应的订单参数。
+深度频道 checksum 字段废弃
+最后更新：2026 年 5 月 19 日
+为了提升行情数据推送的效率和稳定性，以下深度频道将废弃全量快照和增量更新中的 checksum 字段。
+废弃后，checksum 字段仍会保留在全量快照和增量更新中，但其值将固定为 0，不应再用于数据完整性校验。请在废弃生效之前，改用 seqId/prevSeqId 校验数据的连续性和准确性。
+模拟盘废弃日期：2026 年 6 月 2 日
+实盘废弃日期：2026 年 6 月 23 日
+废弃全量快照和增量更新中的 checksum 字段（字段仍保留在推送中，但其值将固定为 0）。
+WS / 深度频道
+books
+books-l2-tbt
+books50-l2-tbt
+注意:
+1. books5 和 bbo-tbt 频道本身不包含 checksum 字段，不在本次变更范围内。
+2. WebSocket 连接已全面启用 TLS（wss://），具备防窃听、防篡改以及完整性校验的能力；结合 seqId/prevSeqId 的严格校验，可有效防止数据乱序、部分丢失或被恶意注入，实现与原 checksum 等效甚至更强的完整性保护。
+2026-05-20
+新增专用 REST API 域名 openapi.okx.com
+OKX 全球站用户现可使用新的专用 REST API 域名 openapi.okx.com。该域名在 API 访问方面与 www.okx.com 完全等价，建议所有 REST API 请求优先使用此域名。
+文档中的 REST API 基础 URL 已从 https://www.okx.com 更新为 https://openapi.okx.com
+www.okx.com 将继续可用，不会下线
+WebSocket URL（ws.okx.com、wspap.okx.com）保持不变
+区域域名（us.okx.com、eea.okx.com、tr.okx.com）保持不变
+建议您将 API 客户端配置中的 REST API 基础 URL 更新为 https://openapi.okx.com。
+ELP Maker 费率
+随着 ELP Maker 费率调整，在费率查询接口的返回参数 feeGroup 中新增 elpMaker 字段，用于展示 ELP Maker 有效费率。详情请参阅公告。
+在 feeGroup 中新增返回参数 elpMaker：
+GET / 获取当前账户交易手续费费率
+返回参数
+参数名	类型	描述
+> elpMaker	String	ELP Maker 有效费率。若 ELP 不适用于该交易产品，则返回 ""。
+2026-05-19
+平台持仓限额优化 — 新增币量维度限额字段及错误码 54031。
+事件合约 — 取消公共数据接口鉴权要求。
+事件合约 — TickSize 精度调整及新增系列频率枚举值。
+事件合约 — 取消鉴权
+以下接口的权限由 读取 变更为 公共（无需鉴权）：
+GET / 获取系列
+GET / 获取事件
+GET / 获取市场
+平台持仓限额优化 — 新增币量维度限额字段及错误码 54031
+更新返回参数 maxPlatOILmt 描述；新增返回参数 maxPlatOICoinLmt，返回币量维度的平台持仓限额：
+GET / 获取交易产品基础信息
+返回参数
+参数名	类型	描述
+maxPlatOILmt	String	该产品的全平台最大持仓名义价值（USD）。当平台总持仓量（USD）达到或超过该值时，系统将拒绝所有用户对该产品的新开仓委托；否则订单通过校验。
+适用于 SWAP/FUTURES
+maxPlatOICoinLmt	String	该产品的全平台最大持仓名义价值（币量）。当平台总持仓量（币量）达到或超过该值时，系统将拒绝所有用户对该产品的新开仓委托；否则订单通过校验。
+适用于 SWAP/FUTURES
+更新错误码 54031 的错误提示文案
+错误码
+错误码	HTTP 状态码	错误提示
+54031	200	下单失败，{param0}的平台持仓量已达到平台持仓限额，无法开仓，只能平仓。开仓请稍后再试。
+事件合约 — TickSize 精度调整
+交易产品基础信息接口中所有 EVENTS 产品的 tickSz 将从 "0.01" 变更为 "0.001"。该值现表示 tick band 中的最小精度（与 OPTION 行为一致）。请使用"获取期权价格梯度"接口传入 instType=EVENTS 查询各价格区间的精确 tickSz。
+如果您的应用依赖 EVENTS 产品的 tickSz 值进行价格校验，请在上线日期前完成相应调整。
+请求参数 instType 新增枚举值 EVENTS：
+GET / 获取期权价格梯度
+请求参数
+参数名	类型	是否必须	描述
+instType	String	是	产品类型。
+OPTION
+EVENTS
+返回参数
+参数名	类型	描述
+instType	String	产品类型
+instFamily	String	交易品种。仅适用于 OPTION
+tickBand	Array of objects	价格梯度。对于 EVENTS，返回适用于所有事件合约的统一价格梯度配置。
+> minPx	String	下单最低价格
+> maxPx	String	下单最高价格
+> tickSz	String	下单价格精度，如 0.001
+更新返回参数 tickSz 描述，新增 EVENTS 说明：
+获取交易产品基础信息
+获取交易产品基础信息
+产品频道
+返回参数
+参数名	类型	描述
+tickSz	String	最小价格变动单位，如 0.0001。对于 OPTION/EVENTS，该值为 tick band 中的最小 tickSz。如需获取各价格区间的精确 tickSz，请使用"获取期权价格梯度"接口并传入对应的 instType 参数。
+返回参数 freq 新增枚举值 five_min 和 hourly：
+GET / 获取系列
+返回参数
+参数名	类型	描述
+freq	String	系列频率
+five_min
+fifteen_min
+hourly
+daily
+2026-05-15
+交易账户
+移仓
+新增说明：TradeFi仓位不支持移仓。尝试对TradeFi仓位执行移仓操作将返回错误码 70004。
+POST / 移仓
+错误码	信息
+70004	Invalid instrument ID {instId}
+跟单
+带单交易员唯一标识码（uniqueCode）
+更新了所有跟单接口中 uniqueCode 参数的描述。带单交易员唯一标识码现支持16位和18位两种格式：
+POST / 首次跟单设置
+POST / 修改跟单设置
+POST / 停止跟单
+GET / 获取跟单设置
+GET / 批量获取杠杆倍数
+GET / 获取跟单人信息
+GET / 获取跟单人信息（私有）
+GET / 获取交易员带单情况
+GET / 获取交易员带单情况（私有）
+GET / 获取交易员收益日表现
+GET / 获取交易员收益日表现（私有）
+GET / 获取交易员收益周表现
+GET / 获取交易员收益周表现（私有）
+GET / 获取交易员币种偏好
+GET / 获取交易员币种偏好（私有）
+GET / 获取交易员当前带单
+GET / 获取交易员当前带单（私有）
+GET / 获取交易员历史带单
+GET / 获取交易员历史带单（私有）
+2026-05-14
+FD Broker
+获取返佣明细下载链接(FD)
+返佣明细 CSV 文件中新增两个字段，以支持经纪商更好地进行手续费和返佣归因。
+GET / 获取返佣明细下载链接(FD)
+参数名	描述
+uid	账户 UID
+clOrdId	客户自定义订单ID。如果下单时未提供，则返回空字符串
+获取用户的 Broker 返佣信息
+type 返回参数新增枚举值 4，表示 MSA 账户无法获得 Broker 返佣。
+GET / 获取用户的 Broker 返佣信息
+枚举值	说明
+4	MSA 账户无法获得 Broker 返佣
+2026-05-11
+描述更新
+更新了以下大宗交易接口中 state 参数的描述，以说明 filled 与 traded_away 的区别：
+创建询价单
+获取询价单
+询价单频道
+值	描述
+filled	表示询价单已成功按照做市商的报价成交。
+traded_away	仅适用于报价方。同一笔询价单可能对一个报价方显示为 filled，而对另一个报价方显示为 traded_away。示例：询价方创建询价单 → 做市商A报价 pxA，做市商B报价 pxB → pxA 优于 pxB → 询价方执行做市商A的报价 → 做市商A看到 filled，做市商B看到 traded_away。
+
+更新大宗交易频道的描述，明确数据仅推送给询价方和成交的报价方，状态为 traded_away 的报价方将不会收到本频道的推送。
+
+
+在公共大宗交易频道中新增 blockTdId 与 rfqId 对应关系说明：普通询价单为一一对应；组合询价单中一个 rfqId 可能对应多个 blockTdId。作为交易对手方的用户可通过私有大宗交易频道进行两者的关联查询。
+
+2026-05-08
+新增接口
+节点（Affiliate）下新增以下接口：
+获取节点业绩概览
+获取直客列表
+获取邀请链接列表
+获取联合邀请人链接列表
+获取二级节点列表
+新增返回参数
+在以下接口中新增返回参数 wdAmt、totalVol：
+获取被邀请人返佣信息
+参数名	类型	描述
+wdAmt	String	累计提现金额，单位为 USDT。如果没有提现，返回 0。
+totalVol	String	生命周期累计交易量，单位为 USDT。如果没有交易，返回 0。
+限速变更
+获取被邀请人返佣信息 的限速由 20次/2s 调整为 3次/s。
+2026-05-07
+新增接口
+以下为新增接口，仅适用于模拟交易环境：
+调整模拟盘余额
+请求参数
+参数名	类型	是否必须	描述
+type	String	是	调整方向。
+increase：增加余额
+reduce：减少余额
+每次请求只能选择一个方向，不可同时包含增加和减少。
+adjustments	Array	是	币种调整列表，至少包含一项，不允许重复币种。
+> ccy	String	是	币种。支持：BTC ETH USDT OKB
+> amt	String	是	调整数量。必须为非负数，小数位数不超过该币种精度。
+单次增加上限：BTC：1，ETH：1，USDT：5000，OKB：100。
+减少操作无单次数量限制，仅受可用余额 ≥ 0 约束。
+返回参数
+参数名	类型	描述
+remainCnt	String	当日剩余增加余额次数。减少操作也会返回该字段，但减少操作不消耗次数。
+totalCnt	String	每日增加余额总次数（默认为 3）。
+details	Array	各币种操作详情。
+> ccy	String	币种。
+> amt	String	实际调整数量。
+> bal	String	操作后该币种的余额。
+错误码
+错误码	HTTP 状态码	错误提示
+59691	200	每日增加余额次数已达上限{param0}，请于 UTC 0:00 后重试或重置模拟盘
+59692	200	{param0} 余额不足，操作后余额不可小于零
+59693	200	{param0} 可转余额不足，部分资金被挂单或持仓占用，请取消订单或平仓后重试
+2026-05-06
+欧易推出现货及现货杠杆市价单（Market Side）自定义滑点容忍度功能，支持 OpenAPI 及 WebSocket。
+SWAP 合约新增产品状态枚举值 post_only，处于该状态时仅接受 post-only 限价单。
+已有接口改动
+新增可选请求参数 slippagePct，适用于币币及币币杠杆市价单中 tgtCcy 为到手币种的场景（买单为 base_ccy，卖单为 quote_ccy）：
+POST / 下单
+POST / 批量下单
+WS / 下单
+WS / 批量下单
+请求参数
+参数名	类型	是否必须	描述
+slippagePct	String	否	币币、币币杠杆市价单（tgtCcy 为到手币种：买单为 base_ccy，卖单为 quote_ccy）的最大可接受滑点。
+取值范围：0 至 0.05（即 0% 至 5%，含边界），以百分比形式表示时最多保留 2 位小数，例如 0.01（1%）和 0.0123（1.23%）合法；0.01234（1.234%）将被拒绝。
+不填或为空时，默认为 0.00%。
+不支持改单修改滑点，如需调整请撤单重新提交。
+仅适用于币币和币币杠杆的市价单。
+错误码
+错误码	HTTP 状态码	错误提示
+54084	200	滑点设置须介于 0% 至 5% 之间（含边界）。
+54085	200	滑点百分比小数位不可超过 2 位。
+返回参数 state 新增枚举值 post_only。合约处于 post_only 状态时，仅接受 post-only 限价单（以及对已有 post-only 订单的改单和撤单）；市价单、IOC、FOK 和普通限价单将被拒绝。仅适用于 SWAP：
+获取交易产品基础信息（私有）
+获取交易产品基础信息（公共）
+产品频道
+返回参数
+参数名	类型	描述
+state	String	产品状态
+post_only：仅接受 post-only 订单；已有 post-only 订单可改单和撤单。其他订单类型（市价单、IOC、FOK、普通限价单）将被拒绝。仅适用于 SWAP
+2026-04-28
+已有接口改动
+返回参数 type 新增枚举值 risk_unit_type：
+设置Delta中性预检查
+返回参数
+参数名	类型	描述
+type	String	不匹配信息类型
+risk_unit_type：该账户在Delta中性风险单元内，无法切换至通用模式。请在切换策略前将其从风险单元中移除。
+错误码
+错误码	HTTP 状态码	错误提示
+59529	200	策略模式设置失败。该账户属于 Delta 中性策略风险单元，设置策略模式前，请先将该账户移出风险单元
+2026-04-24
+Stable Rewards
+OKX 新增 Stable Rewards 模块，自动为持有合格稳定币的用户每日发放奖励。
+新增以下接口：
+GET / 获取产品信息
+POST / 询价
+POST / 下单
+GET / 获取余额
+GET / 获取历史收益率
+GET / 获取订阅赎回历史
+2026-04-22
+大宗商品产品 instCategory 重新分类
+不兼容变更
+以下产品的 instCategory 返回值已由 1（加密货币）变更为 4（大宗商品）：
+XAU-USDT-SWAP
+XAG-USDT-SWAP
+XPD-USDT-SWAP
+XPT-USDT-SWAP
+XCU-USDT-SWAP
+NG-USDT-SWAP
+CL-USDT-SWAP
+BZ-USDT-SWAP
+涉及接口：
+获取交易产品基础信息（私有）
+获取交易产品基础信息（公共）
+产品频道
+2026-04-15
+OKX 上线事件合约，支持公共数据、行情数据及交易账户相关接口。
+事件合约
+以下为新增接口：
+获取系列
+获取事件
+获取市场
+事件合约市场频道
+已有接口改动
+instType 请求参数、返回参数新增枚举值 EVENTS；REST接口，新增请求参数 seriesId，当 instType 为 EVENTS 时必填；新增返回参数 seriesId；返回参数 state 新增枚举值 settling，仅适用于 EVENTS：
+获取交易产品基础信息
+获取交易产品基础信息
+产品频道
+请求参数
+参数名	类型	是否必须	描述
+instType	String	是	产品类型
+EVENTS：事件合约
+seriesId	String	可选	系列 ID，如 BTC-ABOVE-DAILY。当 instType 为 EVENTS 时必填
+返回参数
+参数名	类型	描述
+instType	String	产品类型
+EVENTS：事件合约
+state	String	产品状态
+settling：仅适用于 EVENTS
+seriesId	String	系列 ID，如 BTC-ABOVE-DAILY。仅适用于 EVENTS
+instType 请求参数新增枚举值 EVENTS，适用于以下所有行情数据接口。对于 EVENTS，仅返回 YES 侧行情，NO 侧数据需由用户自行推算；成交量相关字段仅返回合约张数：
+GET / 获取所有产品行情信息
+GET / 获取单个产品行情信息
+WS / 行情频道
+GET / 获取产品深度
+GET / 获取产品完整深度
+WS / 深度频道
+GET / 获取交易产品K线数据
+GET / 获取交易产品历史K线数据
+WS / K线频道
+GET / 获取交易产品公共成交数据
+GET / 获取交易产品公共历史成交数据
+WS / 交易频道
+WS / 全部交易频道
+GET / 获取平台24小时总成交量
+获取持仓总量
+持仓总量频道
+获取标记价格
+获取标记价格K线数据
+获取标记价格历史K线数据
+标记价格频道
+标记价格K线频道
+请求参数
+参数名	类型	是否必须	描述
+instType	String	是	产品类型
+EVENTS：事件合约
+instType 请求参数新增枚举值 EVENTS；对于 EVENTS，WebSocket 订阅时 instId 为必填：
+预估永续/交割/行权/结算价格频道
+请求参数
+参数名	类型	是否必须	描述
+instType	String	是	产品类型
+EVENTS：事件合约
+instId	String	可选	产品 ID。当 instType 为 EVENTS 时必填（仅 WebSocket）
+新增请求参数 speedBump，对 EVENTS 产品的非只挂单（non-post-only）下单与改单操作为必填：
+POST / 下单
+POST / 批量下单
+POST / 修改订单
+POST / 批量修改订单
+WS / 下单
+WS / 批量下单
+WS / 改单
+WS / 批量改单
+请求参数
+参数名	类型	是否必须	描述
+speedBump	String	可选	1：事件合约速度限制（延迟可能因市场情况调整，不提前通知）。对 EVENTS 产品的非只挂单操作为必填。
+新增请求参数 outcome，对 EVENTS 为必填：
+POST / 下单
+POST / 批量下单
+WS / 下单
+WS / 批量下单
+POST / 订单预检查
+获取最大可下单数量
+请求参数
+参数名	类型	是否必须	描述
+outcome	String	可选	用户交易的市场结果方向。
+yes
+no
+仅适用于 EVENTS，且为必填
+新增返回参数 outcome；对于 EVENTS，事件合约结算成交的 category 字段返回 "delivery"：
+GET / 获取订单信息
+GET / 获取未成交订单列表
+GET / 获取历史订单记录（近七天）
+GET / 获取历史订单记录（近三个月）
+WS / 订单频道
+返回参数
+参数名	类型	描述
+outcome	String	用户交易的市场结果方向。
+yes
+no
+仅适用于 EVENTS
+instType 请求参数、返回参数新增枚举值 EVENTS：
+GET / 获取订单信息
+GET / 获取未成交订单列表
+GET / 获取历史订单记录（近七天）
+GET / 获取历史订单记录（近三个月）
+WS / 订单频道
+查看持仓信息
+查看历史持仓信息
+持仓频道
+请求参数
+参数名	类型	是否必须	描述
+instType	String	否	产品类型
+EVENTS：事件合约
+
+对于 EVENTS，WS / 成交频道仅推送 YES 侧成交数据，无论实际订单是否为 YES 或 NO 方向
+
+
+更新 taker 和 maker 字段描述以包含 EVENTS 手续费公式；新增返回参数 settle：
+
+获取当前账户交易手续费费率
+返回参数
+参数名	类型	描述
+taker	String	SPOT/MARGIN/SWAP/FUTURES/OPTION 的吃单手续费率
+EVENTS 吃单手续费公式的 K1 参数：K1 × C × (P × (1-P))（C = 合约张数，P = 价格）
+maker	String	SPOT/MARGIN/SWAP/FUTURES/OPTION 的挂单手续费率
+EVENTS 挂单手续费公式的 K2 参数：K2 × C × (P × (1-P))（C = 合约张数，P = 价格）
+settle	String	结算手续费率，适用于持仓方向与事件合约结算结果一致的用户。持反向仓位的用户结算时不收取手续费。仅适用于 EVENTS
+instType 请求参数新增枚举值 EVENTS；新增 EVENTS 交易及交割的 subType 枚举值：
+GET / 获取成交明细（近三天）
+GET / 获取成交明细（近三个月）
+账单流水查询（近七天）
+账单流水查询（近三个月）
+请求参数
+参数名	类型	是否必须	描述
+instType	String	否	产品类型
+EVENTS：事件合约
+返回参数
+type	subType
+2（交易）	410: 买入yes
+411: 买入no
+412: 卖出yes
+413: 卖出no
+3（交割）	414: yes结算
+415: no结算
+错误码
+错误码	HTTP 状态码	错误提示
+54086	200	You must set request parameter speedBump as 1 when you place or amend non-post-only orders for event contract symbols.
+2026-04-13
+下单附带移动止盈止损
+attachAlgoOrds 数组新增请求参数，支持下单时附带移动止盈止损
+POST / 下单
+POST / 批量下单
+POST / 策略委托下单
+参数名	类型	是否必须	描述
+> callbackRatio	String	可选	回调幅度的比例，如 0.05 代表 5%。
+callbackRatio 和 callbackSpread 必须传入其中一个。
+> callbackSpread	String	可选	回调幅度的价距。
+callbackRatio 和 callbackSpread 必须传入其中一个。
+> activePx	String	否	激活价格。如果不填写，下单后立即激活。
+attachAlgoOrds 数组新增返回参数
+GET / 获取订单信息
+GET / 获取未成交订单列表
+GET / 获取历史订单记录（近七天）
+GET / 获取历史订单记录（近三个月）
+GET / 获取策略委托单信息
+GET / 获取未完成策略委托单列表
+GET / 获取历史策略委托单列表
+WS / 订单频道
+WS / 策略委托订单频道
+参数名	类型	描述
+> callbackRatio	String	回调幅度的比例，如 0.05 代表 5%
+> callbackSpread	String	回调幅度的价距
+> activePx	String	激活价格
+attachAlgoOrds 数组新增改单参数
+POST / 改单
+POST / 批量改单
+POST / 修改策略委托订单
+参数名	类型	是否必须	描述
+> newCallbackRatio	String	可选	新的回调幅度比例。newCallbackRatio 和 newCallbackSpread 只能传入其中一个。
+> newCallbackSpread	String	可选	新的回调幅度价距。
+> newActivePx	String	否	新的激活价格。
+2026-04-10
+活期借币
+
+新增请求参数 ordId 以支持单账户多订单，适用于以下接口：
+
+POST / 最大可借
+GET / 可抵押资产
+GET / 抵押物最大可赎回数量
+POST / 调整抵押物
+GET / 借贷信息
+GET / 借贷历史
+GET / 计息记录
+
+新增返回参数 ordId，适用于以下接口：
+
+GET / 借贷信息
+
+更新返回参数 collateralNotionalUsd 的描述为"调整后的抵押物美金价值"，适用于以下接口：
+
+GET / 借贷信息
+交易产品基础信息
+返回字段 instCategory 新增枚举值
+获取交易产品基础信息（私有）
+获取交易产品基础信息（公共）
+产品频道
+参数名	类型	描述
+instCategory	String	标的资产类别（产品ID的第一部分）。例如：对于 BTC-USDT-SWAP，instCategory 表示 BTC 所属的资产类别。
+1: 加密货币
+3: 股票类资产
+4: 大宗商品
+5: 外汇
+6: 债券
+"" 当值不可用时返回空字符串
+历史市场数据
+请求参数 module 新增枚举值 11（借币利率）
+GET / 获取历史市场数据
+ETH 质押 / SOL 质押
+新增返回参数 rate、redemptDays、minAmt，适用于以下接口：
+GET / 获取产品信息 (ETH)
+GET / 获取产品信息 (SOL)
+2026-04-08
+为了让更多用户享受 VIP 权益，OKX 调整了 VIP 等级及合约费率：
+2026年4月8日 14:00-16:00 (UTC+8)，VIP 等级分类标准调整生效。详见业务变更公告。
+
+子账户限速影响
+- 影响用户：仅影响当前交易手续费等级为 VIP5 或 VIP6，且在 4 月 8 日调整后降至 VIP4 的用户。其他等级用户不受影响。
+- 背景说明：子账户限速默认为最高每 2 秒 1,000 次下单和改单请求。VIP5 及以上用户可根据成交率获得更高限速。详见基于成交率的子账户限速。
+- 具体影响：上述用户降级至 VIP4 后，基于成交率的限速提升机制将不再适用，具体影响如下：
+子账户限速影响	GET / 获取账户限速 返回参数影响
+限速回落至默认的 1,000 次/2秒	fillRatio、mainFillRatio、nextAccRateLimit 的值会为空字符串 ""
+2026-04-07
+交易手续费等级限制下调
+原 VIP6/VIP5 及以上才能访问的频道，已调整为 VIP4 及以上即可访问
+原错误码 60029、60030 已废弃，统一使用错误码 64003
+下表显示了访问各种 Open API 功能的 VIP 等级要求变化：
+接口或者频道	调整前限制	调整后限制（现行）	错误码变更
+SBE trades 频道 和 books-l2-tbt 频道	>= VIP6	>= VIP4	64003 不变
+JSON books-l2-tbt 频道	>= VIP6	>= VIP4	60029 → 64003
+JSON books50-l2-tbt 频道	>= VIP5	>= VIP4	60030 → 64003
+JSON fills 频道	>= VIP6	>= VIP4	60029 → 64003
+下线 WS 订单操作频道中的 instId 请求参数
+为了降低 WS 订单操作的延迟，以下订单操作频道已下线 instId 请求参数。传入 instId 将被忽略。
+下线以下频道中的 instId 请求参数。
+WS / 改单
+WS / 批量改单
+WS / 撤单
+WS / 批量撤单
+请求参数
+参数名	类型	是否必须	描述
+instId	String	-	产品 ID
+已下线，传入将被忽略
+备注：您可以使用获取交易产品基础信息接口将 instIdCode 映射为 instId。
+下单需要 KYC 二级或以上认证
+OKX 将要求用户完成 KYC 二级或以上认证，方可通过 WebSocket 和 REST API 接口下单。未完成 KYC 二级认证的用户在尝试下单时将收到错误码 59113。此要求仅适用于实盘交易，模拟盘交易不受影响。
+受影响的接口
+接口	说明
+WS / 下单	单笔下单
+WS / 批量下单	批量下单
+POST / 下单	单笔下单
+POST / 批量下单	批量下单
+错误码
+错误码	说明
+59113	下单需要 KYC 二级或以上认证
+注意事项：
+用户须完成 KYC 二级身份认证后，方可通过 WebSocket / REST API 接口下单
+此要求仅适用于实盘交易，模拟盘交易不受影响
+2026-03-31
+OKX 上线永续合约风格的交割合约（X-Perps）
+交易产品
+返回参数 ruleType 新增枚举值 xperp，适用于以下接口：
+获取交易产品基础信息
+获取交易产品基础信息
+产品频道
+返回参数
+参数名	类型	描述
+ruleType	String	交易规则类型
+xperp：永续合约风格的交割合约，仅适用于部分 FUTURES 合约
+返回参数 alias 新增枚举值 this_five_years、next_five_years；alias 字段已废弃，将于一个月内下线，请使用 expTime 字段获取交割时间，适用于以下接口：
+获取交易产品基础信息
+获取交易产品基础信息
+产品频道
+返回参数
+参数名	类型	描述
+alias	String	合约标识（已废弃，建议使用 expTime）
+this_five_years：当期五年合约
+next_five_years：次期五年合约
+资金费率
+资金费率相关接口新增对 X-Perps 交割合约的查询支持；请求参数 instId 支持传入 X-Perps 交割合约的 instId，传入 ANY 时返回所有 X-Perps 交割合约及永续合约的资金费率；返回参数 instType 新增枚举值 FUTURES，适用于以下接口：
+获取永续合约当前资金费率
+获取永续合约历史资金费率
+资金费率频道
+返回参数
+参数名	类型	描述
+instType	String	产品类型
+FUTURES：X-Perps 交割合约
+2026-03-26
+下线以下频道中的 instId 请求参数。
+WS / 下单
+WS / 批量下单
+请求参数
+参数名	类型	是否必须	描述
+instId	String	-	产品 ID
+已下线，传入将被忽略
+备注：您可以使用获取交易产品基础信息 接口将 instIdCode 映射为 instId。
+2026-03-24
+
+新增接口：
+
+获取账单类型
+
+新增请求参数 type
+
+申请账单流水（自 2021 年）
+获取账单流水（自 2021 年）
+请求参数
+参数名	类型	是否必须	描述
+type	String	否	账单类型
+账单类型详见获取账单类型
+2026-03-18
+交割价格、行权价格及结算价格的计算窗口由到期前 1 小时缩短至 30 分钟。
+预估价格将基于到期前 30 分钟内的指数价格均值计算。系统每 200 毫秒记录一个价格点，最终价格由该时间窗口内所有记录点的均值决定。
+GET / 获取预估交割/行权价格
+WS / 预估永续/交割/行权/结算价格频道
+2026-03-13
+欧易推出双币赢REST API 接口，支持程序化访问 DCD 产品、报价、交易及订单管理。
+新增以下接口：
+GET / 获取货币对
+GET / 获取产品信息
+POST / 获取报价
+POST / 下单
+POST / 获取赎回报价
+POST / 赎回
+GET / 获取订单状态
+GET / 获取历史订单
+2026-03-10
+下单和改单接口新增返回字段 subCode，用于在 WebSocket 和 REST API 的响应中提供更详细的错误信息。
+POST / 下单
+POST / 批量下单
+POST / 修改订单
+POST / 批量修改订单
+WS / 下单
+WS / 批量下单
+WS / 修改订单
+WS / 批量修改订单
+字段名	类型	描述
+> subCode	String	sCode 的子码。
+当 sCode 为 0（请求成功）时，返回 ""。
+当 sCode 不为 0（请求失败）且存在子码时，返回对应的子码；若无子码，则返回 ""。
+一键还债支持跨币种保证金模式和组合保证金模式
+
+更新接口
+
+GET / 获取一键还债币种列表(新)
+POST / 一键还债交易(新)
+
+新增错误码
+
+错误码	错误提示
+51625	一键还债失败，请先开启自动借币，或通过闪兑、现货交易进行还债。
+2026-03-04
+盘前变基合约
+返回参数 state 新增枚举值 rebase
+返回参数 ruleType 新增枚举值 rebase_contract
+获取交易产品基础信息（私有）
+获取交易产品基础信息（公共）
+产品频道
+参数名	类型	描述
+state	String	产品状态
+live：交易中
+suspend：暂停中
+rebase：合约在变基中，不可交易，仅适用于SWAP
+preopen：预上线，交割和期权合约轮转生成到开始交易；部分交易产品上线前
+test：测试中（测试产品，不可交易）
+ruleType	String	交易规则类型
+normal：普通交易
+pre_market：盘前交易
+rebase_contract：盘前变基合约
+2026-03-02
+SBE 行情数据
+SBE bbo-tbt 频道将于 2026 年 3 月 3 日起对所有交易费等级用户开放，但需登录后方可使用。
+交易产品基础信息
+返回字段 instCategory 新增枚举值 Stocks
+获取交易产品基础信息（私有）
+获取交易产品基础信息（公共）
+产品频道
+Parameter	Type	Description
+instCategory	String	标的资产类别（产品ID的第一部分）。例如：对于 BTC-USDT-SWAP，instCategory 表示 BTC 所属的资产类别。
+1: 加密货币
+3: 股票类资产
+2026-02-27
+市场借贷历史（公共）接口新增返回参数 lendingRate
+GET / 获取市场借贷历史（公共）
+返回参数
+参数名	类型	描述
+lendingRate	String	年化出借利率
+2026-02-12
+新增返回参数
+GET / 获取交易产品基础信息
+GET / 获取交易产品基础信息
+产品频道
+Parameter	Type	Description
+instCategory	String	交易货币币种(产品ID的第一部分)的种类。例如：对于 BTC-USDT-SWAP，instCategory 为 BTC 的种类。
+1: 加密货币
+2026-02-05
+获取交易产品基础信息接口新增开仓剩余额度
+新增返回字段 longPosRemainingQuota 和 shortPosRemainingQuota，用于展示账户当前可开的多头及空头仓位剩余额度。
+获取交易产品基础信息（私有）
+返回字段
+字段名	类型	描述
+longPosRemainingQuota	String	单一用户维度（母子账户共享），在该产品下扣除已有多头仓位及挂单中的买入订单后，仍可开立的多头仓位剩余额度（以 USD 计）。
+shortPosRemainingQuota	String	单一用户维度（母子账户共享），在该产品下扣除已有空头仓位及挂单中的卖出订单后，仍可开立的空头仓位剩余额度（以 USD 计）。
+2026-01-21
+以下接口新增可选请求参数 convertMode：
+GET / 获取闪兑币对信息
+POST / 闪兑预估询价
+POST / 闪兑交易
+请求参数
+参数名	类型	是否必须	描述
+convertMode	String	否	0：标准闪兑（默认）
+1：VIP大额闪兑
+2026-01-15
+XAUT 永续合约重命名
+为了优化用户交易体验，欧易已于 2026 年 1 月 15 日下午 4:05 到 4:25 (UTC+8) 期间，暂停 XAUTUSDT 永续合约的交易，并将 XAUT 永续合约更名为 XAU 永续合约。更多内容请参考公告详情
+
+更名时：
+
+产品频道 会先推送 instId: XAUT-USDT-SWAP, state: expired 的更新数据，然后推送 instId: XAU-USDT-SWAP, state: live 的数据。
+
+更名后：
+
+推送数据中的 instId instFamily, uly 会使用新的参数值。
+平台将不再支持使用 instId: XAUT-USDT-SWAP 以及 instFamily: XAUT-USDT 订阅该合约的 WebSocket 频道，或是通过 OpenAPI 发送 HTTP 请求。请您在合约更名后使用 instId: XAU-USDT-SWAP 或 instFamily: XAU-USDT 进行相关交易。
+先前使用 instId: XAUT-USDT-SWAP 以及 instFamily: XAUT-USDT 订阅的频道：
+对于trades 和 以及 positions 频道的定时快照，旧的订阅仍然会推送数据，请在更名后使用新的参数值重新订阅。
+对于深度频道，旧的订阅仍然会推送数据，需要先使用新的参数值取消订阅，再使用新的参数值重新订阅。
+其他频道将不再推送任何数据，请在更名后使用新的参数值重新订阅。
+instIdCode 不发生变动。
+涉及到重命名的参数如下：
+值类型	instId	uly	instFamily	ctValCcy
+改名前	XAUT-USDT-SWAP	XAUT-USDT	XAUT-USDT	XAUT
+改名后	XAU-USDT-SWAP	XAU-USDT	XAU-USDT	XAU
+2026-01-13
+下单接口新增请求参数isElpTakerAccess，仅支持ioc订单类型
+POST / 下单
+POST / 批量下单
+WS / 下单
+WS / 批量下单
+请求参数
+参数名	类型	是否必须	描述
+isElpTakerAccess	Boolean	否	是否作为 taker 吃单 ELP
+true：该请求能吃单 ELP，但会被施加延迟
+false：该请求不能吃单 ELP，并且没有延迟
+
+默认值为false，true仅适用于ioc订单
+
+isElpTakerAccess:true 订单的限速也会受到限制
+
+50个/2s，限制维度为 User ID + Instrument ID
+该限速会在 REST 和 WebSocket 的下单及批量下单接口中共享
+
+交易产品接口新增返回参数 elp 以表示一个币对是否有开启 ELP 并且用户是否有权限为该币对下 ELP 订单。这不意味着该币对一定有 ELP 挂单。
+
+获取交易产品基础信息
+返回参数
+参数名	类型	描述
+elp	String	ELP 下单权限
+0：该币对不支持 ELP
+1：该币对支持 ELP 但用户没有权限为其下 ELP 订单
+2：该币对支持 ELP 且用户有权限为其下 ELP 订单
+
+1/2不代表深度中一定有 ELP 挂单
+错误码
+错误码	HTTP 状态码	错误提示
+54044	200	{param0} 不支持 ELP，你不能吃单 ELP 挂单
+54045	200	OpenAPI 用户只能下 IOC 订单来吃单 ELP 挂单
+54046	200	你不能吃单 ELP 挂单
+54047	200	您无法修改此订单，因为存在订单 ID 或客户订单 ID 相同的订单处于延迟中
+54048	200	您无法取消此订单，因为存在订单 ID 或客户订单 ID 相同的订单处于延迟中
+54049	200	由于系统繁忙，API 用户目前无法吃单 ELP 挂单。请将 isElpTakerAccess 设置为 false 以继续操作
+2026-01-07
+手续费接口新增请求参数groupId
+获取当前账户交易手续费费率
+请求参数
+参数名	类型	是否必须	描述
+groupId	String	否	交易产品手续费分组ID
+用户可以使用交易产品基础信息接口获取产品ID及其手续费分组ID的对应关系

@@ -1,0 +1,266 @@
+OKX Agent Trade Kit 将 AI 助手与您的 OKX 账户直接连接。无需在 AI 和交易所之间来回切换，只需用自然语言描述您的需求，AI 即可自动执行。
+它以本地进程的方式运行在您的设备上。您的 API Key 永远不会离开本地。完全开源，遵循 MIT 协议。
+OKX 官方 AI 智能交易工具包。 让您的 AI Agent通过自然语言，在 OKX 上交易现货、合约、期权等多种产品。
+GitHub · npm: okx-trade-mcp · npm: okx-trade-cli
+本页内容可能未反映最新版本。 如需查看最新工具列表、模块说明、配置选项及更新日志，请以 GitHub 仓库为准：github.com/okx/agent-trade-kit
+支持哪些功能？
+行情数据 — 价格、订单簿、K线、资金费率、持仓量
+现货交易 — 下单、撤单、改单、批量操作、策略委托
+合约与永续 — 永续合约和交割合约、杠杆、持仓管理
+期权 — 下单、期权链、希腊字母（IV、Delta、Gamma、Theta、Vega）
+策略委托 — 条件单、OCO 止盈止损、追踪止损
+账户 — 余额、账单、手续费率、仓位管理
+机器人 — 创建、监控和停止网格策略
+三种使用方式
+MCP 服务器（okx-trade-mcp） — 接入 Claude、Cursor、Codex、OpenCode 或任意支持 MCP 的 AI 客户端，让您的 Agent 通过自然语言调用 OKX 工具。
+CLI（okx-trade-cli） — 在终端直接交易，支持管道、定时任务和脚本，无需 AI 客户端。
+Skills（okx-cex-market、okx-cex-trade、okx-cex-portfolio、okx-cex-bot） — 即插即用模块，适用于支持 Skills 协议的 AI 客户端（如 OpenClaw）。按需安装，灵活搭配。
+本页导航： OpenClaw · MCP 客户端 · MCP 服务器 · 命令行 · Skills · 安全 · 常见问题
+快速开始
+OpenClaw
+安全提示： 切勿将您的 API Key、Secret Key 或 Passphrase 粘贴到对话框中。AI 不应也无需直接接触您的凭证，请始终将其保存在配置文件中。由于 AI 在 OpenClaw 中的行为具有不确定性，强烈建议使用子账户的 API Key 而非主账户，并仅开启所需的最小权限。
+第一步 — 安装 Skills
+打开 OpenClaw，将以下提示语粘贴到对话框中发送——不是命令行：
+运行 npx skills add okx/agent-skills，自主解决所有碰到的问题，查询 BTC 价格。
+第二步 — 配置 API 凭证
+打开终端，运行：
+mkdir -p ~/.okx && cat > ~/.okx/config.toml << 'EOF'
+default_profile = "demo"
+
+[profiles.live]
+api_key    = "your-live-api-key"
+secret_key = "your-live-secret-key"
+passphrase = "your-live-passphrase"
+
+[profiles.demo]
+api_key    = "your-demo-api-key"
+secret_key = "your-demo-secret-key"
+passphrase = "your-demo-passphrase"
+demo       = trueEOF
+用任意文本编辑器打开 ~/.okx/config.toml，填入您的 api_key、secret_key 和 passphrase，保存即可。
+获取 API Key： API 页面 — 建议先从模拟盘开始。
+MCP 客户端
+Claude Desktop、Claude Code、Cursor、VS Code、Windsurf，以及所有兼容 MCP 的客户端。
+第一步 — 安装
+npm install -g @okx_ai/okx-trade-mcp @okx_ai/okx-trade-cli
+验证安装：
+okx market ticker BTC-USDT
+💡 行情数据可立即使用，无需 API Key。
+第二步 — 添加 OKX API 凭证
+okx config init
+交互式向导将引导您完成 ~/.okx/config.toml 的创建与配置，运行一次即可完成。
+获取 API Key： API 页面 — 建议先从模拟盘开始。
+或手动配置 — 跳过向导，直接创建 ~/.okx/config.toml：
+default_profile = "demo"    # 默认加载哪个 Profile
+# Profile 名称是您自定义的标签，可随意命名。# 启动时通过 --profile <名称> 切换不同配置。# "demo" 和 "live" 只是惯用命名，名称本身没有特殊含义。
+[profiles.demo]api_key    = "your-demo-api-key"secret_key = "your-demo-secret-key"passphrase = "your-demo-passphrase"demo       = true    # demo = true → 模拟盘交易，不涉及真实资金
+[profiles.live]api_key    = "your-live-api-key"secret_key = "your-live-secret-key"passphrase = "your-live-passphrase"
+             # 无 demo 标志 → 实盘交易，使用真实资金
+站点配置
+OKX 在不同地区运营独立站点。请在 Profile 中添加 site 字段，与您账号所在站点保持一致：
+站点	网址	适用人群
+global （默认）	www.okx.com	全球大多数用户
+eea	my.okx.com	EEA / 欧洲用户
+us	app.okx.com	美国用户
+[profiles.live]site       = "global"    # global | eea | us（不填则默认为 global）api_key    = "your-api-key"secret_key = "your-secret-key"passphrase = "your-passphrase"
+代理配置
+如果您需要通过代理访问网络，可在 Profile 中添加 proxy_url 字段。根据代理类型选择以下其中一种配置：
+无需认证：
+[profiles.demo]api_key    = "your-api-key"secret_key = "your-secret-key"passphrase = "your-passphrase"demo       = trueproxy_url  = "http://proxy.example.com:8080"
+需要用户名和密码：
+[profiles.demo]api_key    = "your-api-key"secret_key = "your-secret-key"passphrase = "your-passphrase"demo       = trueproxy_url  = "http://user:password@proxy.example.com:8080"
+密码含特殊字符时需进行 URL encode（例如 p@ss → p%40ss）：
+proxy_url = "http://user:p%40ss@proxy.example.com:8080"
+第三步 — 连接 AI 客户端
+okx-trade-mcp setup --client <client>
+客户端	<client> 值
+Claude Desktop	claude-desktop
+Claude Code	claude-code
+Cursor	cursor
+VS Code	vscode
+Windsurf	windsurf
+如需手动配置，请参阅 GitHub 上的 Client Setup (Manual)。
+第四步 — 试用
+打开您的 AI 客户端，输入：
+OKX 上 BTC 现在的价格是多少？
+查看我的账户余额
+在模拟盘用市价单买入 100 USDT 的 BTC
+BTC-USDT-SWAP 的资金费率是多少？
+MCP
+MCP 服务器通过 Model Context Protocol 标准向外暴露 OKX 交易工具。注册一次后，您的 AI Agent即可进行交易、查询和账户管理。
+启动选项
+使用场景	命令
+仅行情数据（无需 Key）	okx-trade-mcp --modules market
+模拟盘，全功能	okx-trade-mcp --profile demo --modules all
+实盘，只读监控	okx-trade-mcp --profile live --read-only
+实盘，仅现货	okx-trade-mcp --profile live --modules market,spot
+实盘，永续 + 期权	okx-trade-mcp --profile live --modules market,swap,option
+对于未列出的 MCP 客户端，可通过以下命令将其注册为 stdio 服务器：
+okx-trade-mcp --profile <demo|live> --modules <all|market|spot|swap|...>
+工具列表
+market 模块无需 API Key。其他模块均需要 读取 权限；写入操作还需额外开启 交易 权限。
+market — 行情数据
+工具	说明
+market_get_ticker	单币对行情（最新价、24h 量、买一/卖一）
+market_get_tickers	某类型全部行情（SPOT / SWAP / FUTURES / OPTION）
+market_get_orderbook	盘口深度
+market_get_candles	K线（最近 300 根）
+market_get_history_candles	历史K线（2天前，最多3个月）
+market_get_index_ticker	指数行情（如 BTC-USD）
+market_get_index_candles	指数K线
+market_get_price_limit	合约涨跌停价
+market_get_funding_rate	永续合约当前资金费率
+market_get_funding_rate_history	历史资金费率
+market_get_mark_price	衍生品标记价格
+market_get_open_interest	持仓量
+market_get_trades	最新成交记录
+spot — 现货交易
+工具	说明
+spot_place_order	下现货单（市价、限价、Post-only、FOK、IOC）
+spot_cancel_order	撤销挂单
+spot_amend_order	改价或改量
+spot_batch_place_orders	批量下单（最多20笔）
+spot_batch_cancel_orders	批量撤单
+spot_get_order	查询单笔订单详情
+spot_get_open_orders	查询当前挂单
+spot_get_order_history	历史订单（7天内）
+spot_get_order_history_archive	历史订单（7天前，最多3个月）
+spot_get_fills	最新成交记录
+spot_get_fills_archive	较早成交记录（1小时前，最多3个月）
+swap — 永续合约
+工具	说明
+swap_place_order	下永续合约单
+swap_cancel_order	撤销挂单
+swap_amend_order	改价或改量
+swap_batch_place_orders	批量下单（最多20笔）
+swap_batch_cancel_orders	批量撤单
+swap_close_position	一键平仓（指定合约）
+swap_get_order	查询单笔订单详情
+swap_get_open_orders	查询当前挂单
+swap_get_order_history	历史订单（7天内）
+swap_get_positions	当前持仓
+swap_get_fills	最新成交记录
+swap_set_leverage	设置杠杆倍数
+swap_get_leverage	查询当前杠杆设置
+futures — 交割合约
+工具	说明
+futures_place_order	下交割合约单
+futures_cancel_order	撤销挂单
+futures_amend_order	改价或改量
+futures_get_order	查询单笔订单详情
+futures_get_open_orders	查询当前挂单
+futures_get_order_history	历史订单
+futures_get_positions	当前持仓
+futures_get_fills	最新成交记录
+option — 期权
+工具	说明
+option_place_order	期权下单（买入/卖出 call 或 put）
+option_cancel_order	撤销挂单
+option_batch_cancel	批量撤单（最多 20 条）
+option_amend_order	改价或改量
+option_get_order	查询单笔订单详情
+option_get_orders	查询挂单或历史订单
+option_get_positions	当前持仓（含 Greeks）
+option_get_fills	成交记录
+option_get_instruments	期权链（可用合约列表）
+option_get_greeks	每个合约的 IV + Greeks（delta、gamma、theta、vega）
+account — 账户管理
+工具	说明
+account_get_balance	交易账户余额（指定币种或全部）
+account_get_asset_balance	资金账户余额
+account_get_positions	当前所有持仓
+account_get_positions_history	历史持仓记录
+account_get_bills	账单流水（7天内）
+account_get_bills_archive	账单流水（7天前，最多3个月）
+account_get_fee_rates	交易手续费率
+account_get_config	账户配置（仓位模式、账户层级等）
+account_set_position_mode	切换单向/双向持仓模式
+account_get_max_size	指定合约的最大可开仓量
+account_get_max_withdrawal	各币种最大可提余额
+account_get_leverage	查询杠杆设置
+account_set_leverage	设置杠杆（全局）
+account_get_audit_log	查询本地工具调用审计日志
+bot — 策略机器人
+网格（bot.grid）
+工具	说明
+grid_get_orders	列出运行中或历史网格机器人
+grid_get_order_details	查询指定机器人的详情
+grid_get_sub_orders	列出机器人子订单
+grid_create_order	创建网格机器人（现货、合约或 Moon Grid）
+grid_stop_order	停止运行中的机器人
+DCA（bot.dca）
+工具	说明
+dca_create_order	创建 DCA（马丁格尔）机器人
+dca_stop_order	停止 DCA 策略
+dca_get_orders	列出运行中或历史 DCA 策略
+dca_get_order_details	查询单个 DCA 策略详情
+dca_get_sub_orders	列出 DCA 策略生成的子订单
+命令行
+命令行工具是独立的终端工具，无需 AI 客户端。
+# 行情数据
+okx market ticker BTC-USDT
+okx market candles BTC-USDT --bar 1H --limit 10
+okx market funding-rate BTC-USDT-SWAP
+# 交易
+okx spot place --instId BTC-USDT --side buy --ordType market --sz 100
+okx swap place --instId BTC-USDT-SWAP --side buy --ordType market --sz 1 --posSide long --tdMode cross
+# 账户
+okx account balance
+okx account positions
+# 网格机器人
+okx --demo bot grid create --instId BTC-USDT --algoOrdType grid \
+  --maxPx 100000 --minPx 80000 --gridNum 10 --quoteSz 100
+# 管道与脚本
+okx account balance --json | jq '.[] | {ccy: .ccy, eq: .eq}'
+okx market candles BTC-USDT --bar 1H --limit 200 --json | python3 analyze.py
+完整 CLI 参考文档 →
+Skills
+Skills 是即插即用模块，适用于支持 Skills 协议的 AI 客户端。按需安装，支持单一或组合使用。
+npx skills add okx/agent-skills
+Skill	包名	说明	鉴权
+行情数据	okx-cex-market	实时获取最新行情、盘口深度、K线走势、资金费率、持仓量及指数数据。	公开 · 无需 API Key
+交易	okx-cex-trade	支持现货、合约、期权及算法订单。一键下单、撤单、改单及批量操作，更支持 OCO、移动止盈止损及网格策略。	需要 API Key
+资产组合	okx-cex-portfolio	追踪账户余额、当前持仓、收益明细、账单历史、费率等级与资金划转。只需一个 Skill，全盘资产尽在掌握。	需要 API Key
+机器人	okx-cex-bot	自动化交易策略：现货网格、合约网格和定投（DCA）机器人。	需要 API Key
+前往 GitHub 探索全部 Skills →
+安全
+OKX Agent Trade Kit 提供四层安全防护：
+模拟盘模式（--demo）— 在模拟账户中交易，实盘资金不受影响。建议从这里开始。
+只读模式（--read-only）— 仅允许数据查询，不可进行交易操作。
+智能注册 — 服务器在启动时检查您的 API Key 权限。如果该 Key 不具备交易权限，下单工具将不会暴露给 AI。
+风险标签 — 所有涉及资金操作的工具均标记为 [CAUTION]，提示 AI 在执行前进行确认。
+内置限流机制，防止对 OKX API 造成过载。
+凭证安全： 切勿将您的 API Key、Secret Key 或 Passphrase 透露给任何 AI 模型或粘贴到对话框中。所有凭证应仅保存在本地配置文件（~/.okx/config.toml）中。由于 AI 行为具有不确定性，强烈建议使用子账户的 API Key 并仅开启所需的最小权限——除非有明确需求，否则不要开启提币权限。
+常见问题
+问：Agent Trade Kit 能做什么？
+它几乎涵盖欧易的所有核心功能。您可以查询价格、交易现货、合约和期权，设置高级订单（如止盈止损、移动止盈止损等），管理账户，甚至运行网格策略。这一切都可以通过自然语言或命令行完成。完整功能列表请查看 GitHub。
+问：我能用 Agent Trade Kit 交易合约、期权等产品吗？
+这取决于您的欧易账户权限，而非 Agent Trade Kit 本身。该工具只能执行您的账户在欧易平台上已被允许的操作，它无法授予或修改您的任何交易权限。
+如果您的账户可以在欧易交易合约、永续或期权，Agent Trade Kit 同样可以帮您执行。但如果您所在地区或账户类型受到限制（例如，特定地区的用户无法访问衍生品），这些功能对您就不可用——Agent Trade Kit 无法绕过这些限制。
+可以把它理解成一个遥控器：遥控器只能控制电视本身支持的功能，它无法让电视播放没有订阅的频道。如果您不确定自己的账户能访问哪些产品，请查看欧易账户设置或联系欧易客服。
+问：如果 AI 犯错，我会损失资金吗？
+我们内置了四层安全机制。您可通过 --demo 模式进行模拟交易，或使用 --read-only 模式限制 AI 仅查询数据。在实盘操作真实资金前，AI 也会受到严格限制。AI 可能会犯错。请在执行前独立核对所有订单信息，用户需自行承担交易带来的损失。
+问：支持哪些 AI 客户端？
+支持所有兼容 MCP（Model Context Protocol）协议的 AI 客户端，包括 Claude Desktop、Claude Code、Cursor、VS Code 以及各类自定义 Agent。目前它在您的本地设备上运行，未来我们将推出云端（Remote MCP）部署支持。我们可能会根据实际情况新增或移除对特定 AI 客户端的支持。
+问：这个工具是免费的吗？
+是的。Agent Trade Kit 基于 MIT 协议完全开源且免费。你只需要一个欧易账户和 API Key 即可进行交易（如果仅查询行情数据，甚至不需要 API Key）。
+问：我的 API Key 安全吗？
+绝对安全。所有程序都在本地运行。您的密钥仅保存在本地配置文件（~/.okx/config.toml）中，签名过程完全在本地完成，AI 永远无法获取您的敏感凭证。除欧易官方服务器外，没有任何数据会被发送到第三方。代码完全开源，欢迎在 GitHub 上随时查看。另外您需要对自己的 API Key 的安全负责。
+问：使用 Agent Trade Kit 有哪些风险？
+Agent Trade Kit 是一个用于辅助 AI 自动化交易的工具包，不构成任何财务、投资、法律或税务建议。在使用前，请务必了解以下风险与责任：
+AI 与市场风险： AI 模型可能会犯错、产生幻觉或基于过时信息行动。结合加密市场的剧烈波动、滑点、流动性限制或系统延迟，自动化操作可能导致重大资金损失。
+第三方模型风险： 该工具包依赖于第三方大语言模型（LLM）。欧易无法控制、验证或背书这些模型，也不对其输出结果负责。本工具包按"原样"及"现有"状态提供，不作任何执行可靠性或可用性保证。
+用户全责： 您需对自己的交易行为负全责。请务必：独立核实所有 AI 生成的信息、持续监控自动化策略，并妥善保管您的 API 凭证。强烈建议您遵循"最小权限"原则（除非绝对必要，切勿开启提币权限）、绑定受信任的 IP，并在实盘放大资金前进行小额测试。
+免责与赔偿： 在法律允许的最大范围内，欧易对因使用本工具包或依赖 AI 输出而导致的任何直接或间接损失不承担法律责任。您同意赔偿并使欧易免受因您的使用行为或交易活动引发的任何索赔。
+问：如何反馈问题或提交功能建议？
+请在 GitHub 提交 Issue。若工具调用失败，请附上完整的错误信息块，其中包含诊断问题所需的全部信息。
+相关链接
+GitHub (MCP + CLI): github.com/okx/agent-trade-kit
+GitHub (Skills): github.com/okx/agent-skills
+npm: okx-trade-mcp · okx-trade-cli
+OKX 开放 API: okx.com/docs-v5
+问题反馈: github.com/okx/agent-trade-kit/issues
+许可证: MIT
+社群
+欢迎加入 OKX AgentKit 官方 Telegram 社群，获取最新动态、使用技巧与交流讨论：
+t.me/OKX_AgentKit

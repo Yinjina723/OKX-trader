@@ -1,938 +1,446 @@
 # okx_client.py
-"""
-OKX API 客户端：封装与 OKX 的 REST 通信（签名、重试、熔断）及各类接口。
+"""简化 OKX REST API 客户端 —— 日线分析专用（K线/Ticker + 资金费率/OI/多空比）"""
 
-- 行情/公共：K 线、Ticker、订单簿、资金费率、标记价、涨跌停、合约信息等
-- 账户/交易相关：余额、账户配置(posMode)、杠杆信息、手续费(trade-fee)、强平价(adjust-leverage-info)
-- 辅助数据：持仓量、Taker 成交量、多空比、精英多空比、溢价历史等
-- 部分接口会缓存到 AUX_DATA_DIR 的 CSV，减少重复请求
-- P2: 网络熔断器 — 连续失败自动熔断，避免 GFW 阻断时反复重试浪费时间
-"""
-import hmac
 import base64
+import hashlib
+import hmac
 import json
-import time
-import requests
 import logging
-import os
-import csv
-import shutil
-import glob
-from datetime import datetime, timezone
-from pathlib import Path
-from typing import Optional, List, Dict, Any
-from threading import Lock
+import time
+from datetime import datetime
+from typing import Any, Dict, List, Optional, Tuple
+from urllib.parse import urlencode
+
+import requests
 
 from config import Config
 
 logger = logging.getLogger(__name__)
 
+BASE_URLS = {
+    "global":     "https://www.okx.com",
+    "aws":        "https://aws.okx.com",
+    "demo":       "https://www.okx.com",
+    "demo-aws":   "https://aws.okx.com",
+}
 
-# ==================== P2: 网络熔断器 ====================
-
-class CircuitBreaker:
-    """
-    轻量级熔断器，防止连续网络故障时反复重试浪费时间和 API 额度。
-    
-    状态机: CLOSED → (连续失败 N 次) → OPEN → (冷却 T 秒) → HALF_OPEN → (成功) → CLOSED
-    """
-    
-    def __init__(self, name: str = "default", failure_threshold: int = 5, cooldown_seconds: float = 60):
-        self.name = name
-        self.failure_threshold = failure_threshold
-        self.cooldown_seconds = cooldown_seconds
-        self._failure_count = 0
-        self._last_failure_time = 0.0
-        self._state = "CLOSED"  # CLOSED / OPEN / HALF_OPEN
-        self._lock = Lock()
-    
-    @property
-    def is_open(self) -> bool:
-        """熔断器是否开启（阻止请求）。"""
-        with self._lock:
-            if self._state == "CLOSED":
-                return False
-            if self._state == "OPEN":
-                if time.time() - self._last_failure_time >= self.cooldown_seconds:
-                    self._state = "HALF_OPEN"
-                    logger.info(f"[熔断器:{self.name}] 冷却完成，进入半开状态，尝试恢复")
-                    return False
-                return True
-            # HALF_OPEN: 允许通过
-            return False
-    
-    def record_success(self):
-        """记录一次成功，关闭熔断器。"""
-        with self._lock:
-            if self._state != "CLOSED":
-                logger.info(f"[熔断器:{self.name}] 请求成功，熔断器关闭")
-            self._failure_count = 0
-            self._state = "CLOSED"
-    
-    def record_failure(self):
-        """记录一次失败，累计到阈值则熔断。"""
-        with self._lock:
-            self._failure_count += 1
-            self._last_failure_time = time.time()
-            if self._failure_count >= self.failure_threshold:
-                if self._state != "OPEN":
-                    logger.warning(
-                        f"[熔断器:{self.name}] 连续失败 {self._failure_count} 次，"
-                        f"熔断 {self.cooldown_seconds}s"
-                    )
-                self._state = "OPEN"
-    
-    def status(self) -> Dict:
-        """返回熔断器状态快照。"""
-        with self._lock:
-            return {
-                "name": self.name,
-                "state": self._state,
-                "failure_count": self._failure_count,
-                "cooldown_remaining": max(0, self.cooldown_seconds - (time.time() - self._last_failure_time)),
-            }
-
-
-# 全局熔断器实例（可按 endpoint 分组）
-_circuit_breakers: Dict[str, CircuitBreaker] = {}
-_cb_lock = Lock()
-
-
-def get_circuit_breaker(name: str = "default") -> CircuitBreaker:
-    """获取或创建指定名称的熔断器。"""
-    with _cb_lock:
-        if name not in _circuit_breakers:
-            _circuit_breakers[name] = CircuitBreaker(name=name)
-        return _circuit_breakers[name]
 
 class OKXClient:
-    """OKX 官方 REST API 封装。支持实盘/模拟盘(SIMULATED)，请求带签名与重试。"""
-    BASE_URL = "https://www.okx.com"
+    """OKX REST 客户端，带签名，只暴露日线分析需要的接口。"""
 
     def __init__(self, config: Config):
-        self.config = config
-        self.api_key = config.OKX_API_KEY
-        self.secret_key = config.OKX_SECRET_KEY
-        self.passphrase = config.OKX_PASSPHRASE
+        self._api_key = config.OKX_API_KEY
+        self._secret = config.OKX_SECRET_KEY
+        self._passphrase = config.OKX_PASSPHRASE
+        self._simulated = config.SIMULATED
+        self._base = BASE_URLS.get(config.SITE, BASE_URLS["global"])
 
-        raw_sim = config.SIMULATED
-        if isinstance(raw_sim, bool):
-            self.simulated = "1" if raw_sim else "0"
-        elif isinstance(raw_sim, (int, float)):
-            self.simulated = "1" if raw_sim == 1 else "0"
-        else:
-            self.simulated = str(raw_sim).strip()
-            if self.simulated not in ("0", "1"):
-                logger.warning(f"SIMULATED 配置值 '{raw_sim}' 无效，将使用默认值 '0'（实盘）")
-                self.simulated = "0"
-
-        self.max_retries = 5
-        self.retry_delay = 2
-        # 网络请求超时(秒)，中国大陆访问 OKX 建议 30s
-        self.request_timeout = getattr(config, 'REQUEST_TIMEOUT', 30)
-
-        # P2: 熔断器（全局共享，区分公共接口 / 私有接口）
-        self._public_breaker = get_circuit_breaker("okx_public")
-        self._private_breaker = get_circuit_breaker("okx_private")
-
-        # 使用连接池复用 TCP/SSL 连接，降低 SSL 握手被干扰概率
-        self.session = requests.Session()
-        self.session.headers.update({
-            'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) OKX-Client/1.0'
+        self._session = requests.Session()
+        self._session.headers.update({
+            "Content-Type": "application/json",
+            "Accept": "application/json",
         })
+        if self._simulated == "1":
+            self._session.headers["x-simulated-trading"] = "1"
 
-        self.history_dir = config.HISTORY_DIR
-        self.aux_dir = config.AUX_DATA_DIR
-        os.makedirs(self.history_dir, exist_ok=True)
-        os.makedirs(self.aux_dir, exist_ok=True)
-
-        # 辅助数据滚动配置
-        self.max_aux_rows = getattr(config, 'MAX_AUX_ROWS', 5000)   # 每个文件最大行数（含表头）
-        self.max_aux_files = getattr(config, 'MAX_AUX_FILES', 10)   # 最多保留的文件数
-
-        logger.info(f"OKXClient 初始化完成，模拟盘模式: {self.simulated}")
-        logger.info(f"数据缓存目录: {self.history_dir} (K线), {self.aux_dir} (辅助数据)")
-        logger.info(f"辅助数据滚动配置: 最大行数 {self.max_aux_rows}, 最多保留 {self.max_aux_files} 个文件")
-
-    # ================== 内部辅助方法 ==================
-    def _generate_signature(self, timestamp: str, method: str, request_path: str, body: str = "") -> str:
-        message = timestamp + method.upper() + request_path + body
-        mac = hmac.new(
-            bytes(self.secret_key, encoding='utf8'),
-            bytes(message, encoding='utf-8'),
-            digestmod='sha256'
+        # 底层连接重试适配器（处理 SSL/DNS/连接池耗尽）
+        from requests.adapters import HTTPAdapter
+        from urllib3.util.retry import Retry
+        retry_strategy = Retry(
+            total=3,
+            backoff_factor=1,
+            status_forcelist=[429, 500, 502, 503, 504],
+            allowed_methods=["GET", "POST"],
         )
-        return base64.b64encode(mac.digest()).decode()
+        adapter = HTTPAdapter(max_retries=retry_strategy, pool_connections=5, pool_maxsize=10)
+        self._session.mount("https://", adapter)
+        self._session.mount("http://", adapter)
 
-    def _build_request_headers(self, method: str, request_path: str, body: str = "") -> Dict[str, str]:
-        timestamp = datetime.now(timezone.utc).strftime('%Y-%m-%dT%H:%M:%S.%f')[:-3] + 'Z'
-        headers = {
-            'OK-ACCESS-KEY': self.api_key,
-            'OK-ACCESS-SIGN': self._generate_signature(timestamp, method, request_path, body),
-            'OK-ACCESS-TIMESTAMP': timestamp,
-            'OK-ACCESS-PASSPHRASE': self.passphrase,
-            'Content-Type': 'application/json'
-        }
-        if self.simulated == "1":
-            headers['x-simulated-trading'] = '1'
-        logger.debug(f"请求头: {headers}")
-        return headers
+    # ── 签名 ────────────────────────────────────────────
 
-    def _request(self, method: str, endpoint: str, params: Optional[Dict] = None, body: Optional[Dict] = None) -> Dict:
-        request_path = endpoint
-        if params and method.upper() == 'GET':
-            query_string = '&'.join([f"{k}={v}" for k, v in params.items() if v is not None])
-            if query_string:
-                request_path += '?' + query_string
+    def _sign(self, method: str, path: str, body: str = "") -> Tuple[str, str]:
+        ts = datetime.utcnow().strftime("%Y-%m-%dT%H:%M:%S.%f")[:-3] + "Z"
+        prehash = ts + method.upper() + path + body
+        sign = base64.b64encode(
+            hmac.new(
+                self._secret.encode("utf-8"),
+                prehash.encode("utf-8"),
+                hashlib.sha256,
+            ).digest()
+        ).decode("utf-8")
+        return ts, sign
 
-        body_str = json.dumps(body) if body and method.upper() == 'POST' else ""
+    def _request(self, method: str, path: str, params: dict = None) -> Any:
+        """发送签名请求，自动处理分页 + 网络重试。
 
-        if self.api_key and self.secret_key and self.passphrase:
-            headers = self._build_request_headers(method, request_path, body_str)
-            breaker = self._private_breaker
-        else:
-            headers = {'Content-Type': 'application/json'}
-            breaker = self._public_breaker
+        适用于返回 List[List] 的接口（如 K 线、资金费率），
+        以每行第一个元素作为分页游标。
+        """
+        all_results: List[Any] = []
+        page_before = ""
+        url = self._base + path
+        if params is None:
+            params = {}
 
-        url = self.BASE_URL + endpoint
-        request_params = {k: v for k, v in (params or {}).items() if v is not None}
+        while True:
+            p = dict(params)
+            if page_before:
+                p["before"] = page_before
 
-        # P2: 熔断器检查 — 已熔断则快速失败
-        if breaker.is_open:
-            raise requests.exceptions.ConnectionError(
-                f"[熔断器:{breaker.name}] 已熔断，跳过请求 {endpoint}"
-            )
+            body = json.dumps(p) if method.upper() == "POST" else ""
+            ts, sign = self._sign(method, path + ("?" + urlencode(p) if p and method == "GET" else ""), body)
+            headers = {
+                "OK-ACCESS-KEY": self._api_key,
+                "OK-ACCESS-SIGN": sign,
+                "OK-ACCESS-TIMESTAMP": ts,
+                "OK-ACCESS-PASSPHRASE": self._passphrase,
+            }
 
-        for attempt in range(self.max_retries):
+            resp = self._send_retry(method, url, p, body, headers)
+            if resp is None:
+                return all_results if all_results else None
+
+            if resp.status_code == 429:
+                logger.warning("速率限制，等待 2 秒后重试...")
+                time.sleep(2)
+                continue
+
             try:
-                if method.upper() == 'GET':
-                    resp = self.session.get(url, params=request_params, headers=headers,
-                                           timeout=self.request_timeout)
-                elif method.upper() == 'POST':
-                    resp = self.session.post(url, json=body, headers=headers,
-                                            timeout=self.request_timeout)
-                else:
-                    raise ValueError(f"不支持的请求方法: {method}")
-
-                if resp.status_code != 200:
-                    error_msg = f"HTTP {resp.status_code}: {resp.text}"
-                    logger.error(error_msg)
-                    raise requests.exceptions.HTTPError(error_msg, response=resp)
-
                 data = resp.json()
-                if data.get("code") != "0":
-                    err_code = data.get("code")
-                    err_msg = data.get("msg", "未知错误")
-                    # 尝试从 data.data[0].sCode/sMsg 中拿到更具体的错误
-                    detail = ""
-                    try:
-                        first = (data.get("data") or [])[0] or {}
-                        s_code = first.get("sCode")
-                        s_msg = first.get("sMsg")
-                        if s_code not in (None, "", "0") or s_msg:
-                            detail = f"；子错误 [{s_code}]: {s_msg}"
-                    except Exception:
-                        detail = ""
-                    full_msg = f"API 错误 [{err_code}]: {err_msg}{detail}"
-                    if err_code == "50101":
-                        full_msg += "。可能原因：API Key 环境与请求头不匹配，请检查 config.json 中的 SIMULATED 值（1=模拟盘，0=实盘）以及 API Key 是否在正确的环境中创建。"
-                    logger.error(full_msg)
-                    raise Exception(full_msg)
+            except Exception:
+                logger.error(f"解析响应失败: {resp.text[:300]}")
+                return all_results if all_results else None
 
-                # P2: 请求成功 → 关闭熔断器
-                breaker.record_success()
-                return data
+            code = data.get("code", "")
+            if code != "0":
+                logger.error(f"API 返回错误 code={code} msg={data.get('msg')}")
+                return all_results if all_results else None
 
-            except requests.exceptions.RequestException as e:
-                logger.warning(f"请求失败 (尝试 {attempt+1}/{self.max_retries}): {e}")
-                if hasattr(e, 'response') and e.response is not None:
-                    logger.warning(f"响应状态码: {e.response.status_code}")
-                    logger.warning(f"响应内容: {e.response.text}")
-                if attempt < self.max_retries - 1:
-                    wait = self.retry_delay * (2 ** attempt)  # 2,4,8,16秒
-                    logger.debug(f"重试冷却 {wait}s ...")
-                    time.sleep(wait)
-                else:
-                    # P2: 所有重试耗尽 → 记录失败到熔断器
-                    breaker.record_failure()
-                    raise
-            except Exception as e:
-                logger.warning(f"未知错误 (尝试 {attempt+1}/{self.max_retries}): {e}")
-                if attempt < self.max_retries - 1:
-                    wait = self.retry_delay * (2 ** attempt)
-                    time.sleep(wait)
-                else:
-                    # P2: 所有重试耗尽 → 记录失败到熔断器
-                    breaker.record_failure()
-                    raise
+            chunk = data.get("data", [])
+            if chunk:
+                all_results.extend(chunk)
 
-    # ================== 账户相关接口 ==================
+            # ~ 没有更多数据则停止
+            if len(chunk) < 100:
+                break
+            # 分页游标：仅当 chunk 是 list-of-list 时可用
+            try:
+                page_before = chunk[-1][0] if chunk else ""
+            except (KeyError, TypeError, IndexError):
+                break  # 非标准列表格式（如 dict 列表），不分页
 
-    def get_account_balance(self, ccy: Optional[str] = None) -> Dict[str, Any]:
-        """
-        获取交易账户余额信息，对应 GET /api/v5/account/balance。
-        返回 OKX 原始 JSON 结构。
-        """
-        endpoint = "/api/v5/account/balance"
-        params: Dict[str, Any] = {}
-        if ccy:
-            params["ccy"] = ccy
-        return self._request("GET", endpoint, params)
+        return all_results
 
-    def get_account_config(self) -> Dict[str, Any]:
-        """
-        获取账户配置，对应 GET /api/v5/account/config。
-        主要用来读取 posMode（long_short_mode 或 net_mode）。
-        """
-        endpoint = "/api/v5/account/config"
-        return self._request("GET", endpoint, {})
+    def _request_simple(self, method: str, path: str, params: dict = None) -> Any:
+        """发送签名请求（不处理分页），适用于全量返回接口（如 tickers）。"""
+        url = self._base + path
+        if params is None:
+            params = {}
+        p = dict(params)
 
-    def get_adjust_leverage_info(
-        self,
-        instType: str,
-        mgnMode: str,
-        lever: float | str,
-        instId: Optional[str] = None,
-    ) -> Dict[str, Any]:
-        """
-        获取指定杠杆倍数下的预估信息（包括预估强平价等），对应
-        GET /api/v5/account/adjust-leverage-info。
-        """
-        endpoint = "/api/v5/account/adjust-leverage-info"
-        params: Dict[str, Any] = {
-            "instType": instType,
-            "mgnMode": mgnMode,
-            "lever": str(lever),
+        body = json.dumps(p) if method.upper() == "POST" else ""
+        ts, sign = self._sign(method, path + ("?" + urlencode(p) if p and method == "GET" else ""), body)
+        headers = {
+            "OK-ACCESS-KEY": self._api_key,
+            "OK-ACCESS-SIGN": sign,
+            "OK-ACCESS-TIMESTAMP": ts,
+            "OK-ACCESS-PASSPHRASE": self._passphrase,
         }
-        if instId:
-            params["instId"] = instId
-        return self._request("GET", endpoint, params)
 
-    def get_leverage_info(self, instId: str, mgnMode: str) -> Dict[str, Any]:
-        """
-        获取账户当前在某合约上的实际杠杆信息，
-        对应 GET /api/v5/account/leverage-info。
-        返回中通常包含 lever、mgnMode 等字段。
-        """
-        endpoint = "/api/v5/account/leverage-info"
-        params: Dict[str, Any] = {"instId": instId, "mgnMode": mgnMode}
-        return self._request("GET", endpoint, params)
+        resp = self._send_retry(method, url, p, body, headers)
+        if resp is None:
+            return None
 
-    def get_trade_fee(self, instType: str = "SWAP", instId: Optional[str] = None) -> Dict[str, Any]:
-        """
-        获取当前账户在指定品种上的实际交易手续费率，对应
-        GET /api/v5/account/trade-fee。
-        典型返回字段包括 maker / taker（如 0.0002 表示 0.02%）。
-        """
-        endpoint = "/api/v5/account/trade-fee"
-        params: Dict[str, Any] = {"instType": instType}
-        if instId:
-            params["instId"] = instId
-        return self._request("GET", endpoint, params)
-
-    def _get_cache_filepath(self, data_type: str, instId: str) -> str:
-        safe_inst = instId.replace('-', '_').replace('/', '_')
-        if data_type == 'klines':
-            return os.path.join(self.history_dir, f"klines_{safe_inst}.csv")
-        else:
-            return os.path.join(self.aux_dir, f"{data_type}_{safe_inst}.csv")
-
-    def _save_to_csv(self, data_type: str, instId: str, data: List, headers: List[str]):
-        if not data:
-            return
-        filepath = self._get_cache_filepath(data_type, instId)
-        base_path = Path(filepath)
-
-        current_rows = 0  # 初始化
-
-        # 获取当前文件行数（如果存在）
-        if base_path.exists():
-            with open(base_path, 'r', encoding='utf-8') as f:
-                current_rows = sum(1 for _ in f)  # 包括表头
-
-        # 非K线数据且需要滚动
-        if data_type != 'klines' and self.max_aux_rows > 0:
-            total_rows = current_rows + len(data)
-            if total_rows > self.max_aux_rows:
-                # 滚动文件：重命名当前文件，添加时间戳
-                timestamp = datetime.now().strftime('%Y%m%d_%H%M%S')
-                new_name = base_path.stem + f"_{timestamp}" + base_path.suffix
-                new_path = base_path.with_name(new_name)
-                shutil.move(filepath, new_path)
-                logger.info(f"辅助数据文件达到阈值，已重命名为 {new_name}")
-
-                # 清理旧文件，只保留最近 max_aux_files 个文件
-                if self.max_aux_files > 0:
-                    pattern = base_path.stem + "_*" + base_path.suffix
-                    files = sorted(base_path.parent.glob(pattern))
-                    # 删除最旧的文件，直到数量小于 max_aux_files
-                    while len(files) >= self.max_aux_files:
-                        files[0].unlink()
-                        logger.debug(f"删除旧辅助数据文件: {files[0]}")
-                        files.pop(0)
-
-                # 重置 current_rows 为0（新文件即将创建）
-                current_rows = 0
-
-        # 追加写入（新文件时写入表头）
-        file_exists = base_path.exists() and current_rows > 0
-        with open(filepath, 'a', newline='', encoding='utf-8') as f:
-            writer = csv.writer(f)
-            if not file_exists:
-                writer.writerow(headers)
-            for row in data:
-                if isinstance(row, dict):
-                    row = [row.get(h, '') for h in headers]
-                writer.writerow(row)
-        logger.debug(f"已追加 {len(data)} 条记录到 {filepath}")
-
-    def _load_latest_from_csv(self, data_type: str, instId: str, limit: int = 1,
-                              max_age_hours: float = 24) -> List[List]:
-        """
-        从本地CSV文件中读取最新的 limit 条记录。
-        注意：如果文件已滚动，只读取最新文件（即当前主文件）的数据。
-        若最新文件数据不足，不会从历史文件中补充。
-        """
-        filepath = self._get_cache_filepath(data_type, instId)
-        if not os.path.isfile(filepath):
-            return []
+        if resp.status_code == 429:
+            logger.warning("速率限制，等待 2 秒后重试...")
+            time.sleep(2)
+            return self._request_simple(method, path, params)
 
         try:
-            rows = []
-            with open(filepath, 'r', encoding='utf-8') as f:
-                reader = csv.reader(f)
-                headers = next(reader)  # 跳过表头
-                for row in reader:
-                    rows.append(row)
+            data = resp.json()
+        except Exception:
+            logger.error(f"解析响应失败: {resp.text[:300]}")
+            return None
+
+        code = data.get("code", "")
+        if code != "0":
+            logger.error(f"API 返回错误 code={code} msg={data.get('msg')}")
+            return None
 
-            if not rows:
-                return []
-
-            ts_col_idx = 0
-            valid_rows = []
-            now_ms = time.time() * 1000
-            for row in rows:
-                try:
-                    ts = int(row[ts_col_idx])
-                    if (now_ms - ts) <= max_age_hours * 3600 * 1000:
-                        valid_rows.append(row)
-                except (ValueError, IndexError):
-                    continue
-
-            valid_rows.sort(key=lambda x: int(x[ts_col_idx]), reverse=True)
-            return valid_rows[:limit]
-
-        except Exception as e:
-            logger.warning(f"读取本地CSV失败 {filepath}: {e}")
-            return []
-
-    # ================== K线数据 ==================
-    def get_klines(self, instId: str, bar: str, limit: int = 300, after: Optional[str] = None) -> List[List]:
-        endpoint = "/api/v5/market/candles"
-        params = {"instId": instId, "bar": bar, "limit": limit}
-        if after:
-            params["after"] = after
-        data = self._request("GET", endpoint, params)
-        result = data.get("data", [])
-
-        if result:
-            headers = ["open_time", "open", "high", "low", "close", "vol", "vol_ccy", "vol_quote", "confirm"]
-            self._save_to_csv("klines", instId, result, headers)
-
-        return result
-
-    def get_orderbook(self, instId: str, sz: int = 1) -> Dict[str, Any]:
-        endpoint = "/api/v5/market/books"
-        params = {"instId": instId, "sz": sz}
-        data = self._request("GET", endpoint, params)
-        result = data.get("data", [{}])[0] if data.get("data") else {}
-
-        if result:
-            save_data = [{
-                'ts': result.get('ts', ''),
-                'bids': json.dumps(result.get('bids', [])),
-                'asks': json.dumps(result.get('asks', [])),
-            }]
-            headers = ['ts', 'bids', 'asks']
-            self._save_to_csv("orderbook", instId, save_data, headers)
-
-        return result
-
-    def get_ticker(self, instId: str) -> Dict[str, Any]:
-        endpoint = "/api/v5/market/ticker"
-        params = {"instId": instId}
-        data = self._request("GET", endpoint, params)
-        result = data.get("data", [{}])[0] if data.get("data") else {}
-        return result
-
-    def get_instrument_info(self, instId: str) -> Dict:
-        endpoint = "/api/v5/public/instruments"
-        params = {"instType": "SWAP", "instId": instId}
-        data = self._request("GET", endpoint, params)
-        if data.get("data"):
-            return data["data"][0]
-        return {}
-
-    def get_funding_rate(self, instId: str) -> Dict[str, Any]:
-        local = self._load_latest_from_csv('funding_rate', instId, limit=1, max_age_hours=24)
-        if local:
-            headers = ['ts', 'fundingRate', 'fundingTime', 'nextFundingRate', 'nextFundingTime']
-            latest = dict(zip(headers, local[0]))
-            logger.info(f"使用本地缓存资金费率数据，时间戳: {latest['ts']}")
-            return latest
-
-        endpoint = "/api/v5/public/funding-rate"
-        params = {"instId": instId}
-        data = self._request("GET", endpoint, params)
-        result = data.get("data", [{}])[0] if data.get("data") else {}
-
-        if result:
-            save_data = [{
-                'ts': result.get('ts', ''),
-                'fundingRate': result.get('fundingRate', ''),
-                'fundingTime': result.get('fundingTime', ''),
-                'nextFundingRate': result.get('nextFundingRate', ''),
-                'nextFundingTime': result.get('nextFundingTime', ''),
-            }]
-            headers = ['ts', 'fundingRate', 'fundingTime', 'nextFundingRate', 'nextFundingTime']
-            self._save_to_csv('funding_rate', instId, save_data, headers)
-
-        return result
-
-    def get_mark_price(self, instId: str) -> Dict[str, Any]:
-        endpoint = "/api/v5/public/mark-price"
-        params = {"instType": "SWAP", "instId": instId}
-        data = self._request("GET", endpoint, params)
-        result = data.get("data", [{}])[0] if data.get("data") else {}
-
-        if result:
-            save_data = [{
-                'ts': result.get('ts', ''),
-                'markPx': result.get('markPx', ''),
-            }]
-            headers = ['ts', 'markPx']
-            self._save_to_csv('mark_price', instId, save_data, headers)
-
-        return result
-
-    def get_price_limit(self, instId: str) -> Dict[str, Any]:
-        local = self._load_latest_from_csv('price_limit', instId, limit=1, max_age_hours=1)
-        if local:
-            headers = ['ts', 'buyLmt', 'sellLmt', 'enabled']
-            latest = dict(zip(headers, local[0]))
-            logger.info(f"使用本地缓存限价数据，时间戳: {latest['ts']}")
-            return latest
-
-        endpoint = "/api/v5/public/price-limit"
-        params = {"instId": instId}
-        data = self._request("GET", endpoint, params)
-        result = data.get("data", [{}])[0] if data.get("data") else {}
-
-        if result:
-            save_data = [{
-                'ts': result.get('ts', ''),
-                'buyLmt': result.get('buyLmt', ''),
-                'sellLmt': result.get('sellLmt', ''),
-                'enabled': result.get('enabled', False),
-            }]
-            headers = ['ts', 'buyLmt', 'sellLmt', 'enabled']
-            self._save_to_csv('price_limit', instId, save_data, headers)
-
-        return result
-
-    def get_open_interest_history(self, instId: str, period: str = "5m", limit: int = 2) -> List[List]:
-        local = self._load_latest_from_csv('open_interest_history', instId, limit=limit, max_age_hours=24)
-        if len(local) >= limit:
-            logger.info(f"使用本地缓存持仓量历史数据")
-            return local
-
-        endpoint = "/api/v5/rubik/stat/contracts/open-interest-history"
-        params = {"instId": instId, "period": period, "limit": limit}
-        data = self._request("GET", endpoint, params)
-        result = data.get("data", [])
-
-        if result:
-            headers = ['ts', 'oi', 'oiCcy', 'oiUsd']
-            self._save_to_csv('open_interest_history', instId, result, headers)
-
-        return result
-
-    def get_taker_volume_contract(self, instId: str, period: str = "5m", limit: int = 2) -> List[List]:
-        local = self._load_latest_from_csv('taker_volume', instId, limit=limit, max_age_hours=24)
-        if len(local) >= limit:
-            logger.info(f"使用本地缓存主动买卖量数据")
-            return local
-
-        endpoint = "/api/v5/rubik/stat/taker-volume-contract"
-        params = {"instId": instId, "period": period, "limit": limit}
-        data = self._request("GET", endpoint, params)
-        result = data.get("data", [])
-
-        if result:
-            headers = ['ts', 'sellVol', 'buyVol']
-            self._save_to_csv('taker_volume', instId, result, headers)
-
-        return result
-
-    def get_long_short_account_ratio(self, instId: str, period: str = "5m", limit: int = 2) -> List[List]:
-        local = self._load_latest_from_csv('long_short_ratio', instId, limit=limit, max_age_hours=24)
-        if len(local) >= limit:
-            logger.info(f"使用本地缓存多空比数据")
-            return local
-
-        endpoint = "/api/v5/rubik/stat/contracts/long-short-account-ratio-contract"
-        params = {"instId": instId, "period": period, "limit": limit}
-        data = self._request("GET", endpoint, params)
-        result = data.get("data", [])
-
-        if result:
-            headers = ['ts', 'ratio']
-            self._save_to_csv('long_short_ratio', instId, result, headers)
-
-        return result
-
-    def get_top_trader_long_short_account_ratio(self, instId: str, period: str = "5m", limit: int = 2) -> List[List]:
-        local = self._load_latest_from_csv('elite_ratio', instId, limit=limit, max_age_hours=24)
-        if len(local) >= limit:
-            logger.info(f"使用本地缓存精英多空比数据")
-            return local
-
-        endpoint = "/api/v5/rubik/stat/contracts/long-short-account-ratio-contract-top-trader"
-        params = {"instId": instId, "period": period, "limit": limit}
-        data = self._request("GET", endpoint, params)
-        result = data.get("data", [])
-
-        if result:
-            headers = ['ts', 'ratio']
-            self._save_to_csv('elite_ratio', instId, result, headers)
-
-        return result
-
-    def get_premium_history(self, instId: str, limit: int = 1) -> List[List]:
-        local = self._load_latest_from_csv('premium', instId, limit=limit, max_age_hours=24)
-        if len(local) >= limit:
-            logger.info(f"使用本地缓存溢价指数数据")
-            return local
-
-        endpoint = "/api/v5/public/premium-history"
-        params = {"instId": instId, "limit": limit}
-        data = self._request("GET", endpoint, params)
-        result = data.get("data", [])
-
-        if result:
-            headers = ['ts', 'premium']
-            converted = [[item['ts'], item['premium']] for item in result if 'ts' in item and 'premium' in item]
-            self._save_to_csv('premium', instId, converted, headers)
-            return converted
-
-        return []
-
-    def get_insurance_fund(self, instType: str, instFamily: str,
-                           type_filter: str = None, limit: int = 5) -> List[Dict]:
-        """GET /api/v5/public/insurance-fund
-        获取保险基金数据，用于间接推算爆仓量。
-        type_filter 可选: liquidation_balance_deposit(爆仓罚金), bankruptcy_loss(穿仓亏损),
-                          platform_revenue, regular_update, adl
-        instFamily 格式: "BTC-USD", "AI-USDT" 等
-        """
-        local = self._load_latest_from_csv('insurance_fund', instFamily.replace('-', '_'), limit=limit, max_age_hours=12)
-        headers = ['ts', 'type', 'amt', 'balance', 'instFamily', 'adlType']
-        if len(local) >= limit:
-            logger.info(f"使用本地缓存保险基金数据")
-            result = []
-            for row in local:
-                result.append(dict(zip(headers[:len(row)], row)))
-            return result
-
-        endpoint = "/api/v5/public/insurance-fund"
-        params: Dict[str, Any] = {"instType": instType, "instFamily": instFamily, "limit": str(limit)}
-        if type_filter:
-            params["type"] = type_filter
-        data = self._request("GET", endpoint, params)
-        raw = data.get("data", [])
-
-        result = []
-        save_rows = []
-        for item in raw:
-            inst_family = item.get('instFamily', instFamily)
-            for detail in item.get('details', []):
-                row = {
-                    'ts': detail.get('ts', ''),
-                    'type': detail.get('type', ''),
-                    'amt': detail.get('amt', ''),
-                    'balance': detail.get('balance', ''),
-                    'instFamily': inst_family,
-                    'adlType': detail.get('adlType', ''),
-                }
-                result.append(row)
-                save_rows.append([row['ts'], row['type'], row['amt'], row['balance'], row['instFamily'], row['adlType']])
-
-        if save_rows:
-            safe_key = instFamily.replace('-', '_')
-            self._save_to_csv('insurance_fund', safe_key, save_rows, headers)
-
-        return result
-
-    def get_funding_rate_history(self, instId: str, limit: int = 24) -> List[Dict]:
-        """
-        获取资金费率历史（多点数据），用于检测"费率收割周期"。
-        GET /api/v5/public/funding-rate-history
-        返回: [{instId, instType, fundingRate, realizedRate, fundingTime, ts}, ...]
-        """
-        local = self._load_latest_from_csv('funding_rate_hist', instId, limit=limit, max_age_hours=8)
-        headers = ['ts', 'fundingRate', 'realizedRate', 'fundingTime']
-        if len(local) >= limit:
-            logger.info(f"使用本地缓存资金费率历史数据 ({len(local)} 条)")
-            result = []
-            for row in local:
-                result.append(dict(zip(headers[:len(row)], row)))
-            return result
-
-        endpoint = "/api/v5/public/funding-rate-history"
-        params = {"instId": instId, "limit": str(limit)}
-        data = self._request("GET", endpoint, params)
-        if isinstance(data, dict):
-            raw = data.get("data", [])
-        elif isinstance(data, list):
-            raw = data
-        else:
-            raw = []
-        if raw:
-            save_rows = []
-            for item in raw:
-                if isinstance(item, dict):
-                    save_rows.append([
-                        item.get('ts', ''), item.get('fundingRate', ''),
-                        item.get('realizedRate', ''), item.get('fundingTime', '')
-                    ])
-            self._save_to_csv('funding_rate_hist', instId, save_rows, headers)
-        return raw
-
-    def get_index_tickers(self, instId: str) -> Dict[str, Any]:
-        """
-        获取指数行情（现货基准价），用于计算期货-现货基差。
-        GET /api/v5/market/index-tickers
-        注意: instId 需要是指数产品 ID，如 "BTC-USDT"（不是 SWAP）。
-        返回: {instId, idxPx, high24h, low24h, ts, ...}
-        """
-        local = self._load_latest_from_csv('index_tickers', instId, limit=1, max_age_hours=1)
-        if local:
-            headers = ['ts', 'idxPx', 'high24h', 'low24h']
-            latest = dict(zip(headers, local[0]))
-            logger.info(f"使用本地缓存指数行情数据")
-            return latest
-
-        endpoint = "/api/v5/market/index-tickers"
-        params = {"instId": instId}
-        data = self._request("GET", endpoint, params)
-        result = data.get("data", [{}])[0] if data.get("data") else {}
-        if result:
-            save_data = [{
-                'ts': result.get('ts', ''),
-                'idxPx': result.get('idxPx', ''),
-                'high24h': result.get('high24h', ''),
-                'low24h': result.get('low24h', ''),
-            }]
-            headers = ['ts', 'idxPx', 'high24h', 'low24h']
-            safe_id = instId.replace('-', '_').replace('/', '_')
-            self._save_to_csv('index_tickers', safe_id, save_data, headers)
-        return result
-
-    def get_position_ratio_top_trader(self, instId: str, period: str = "5m", limit: int = 12) -> List[Dict]:
-        """
-        获取精英交易员持仓比（仓位比，非人数比）—— 真实资金方向。
-        GET /api/v5/rubik/stat/contracts/long-short-position-ratio-contract-top-trader
-        返回: [{ts, longPosition, shortPosition, longShortPositionRatio}, ...]
-        区别于现有的 long-short-account-ratio-contract-top-trader（账户数比），
-        此接口反映的是实际持仓仓位占比，代表大资金真实多空倾向。
-        """
-        local = self._load_latest_from_csv('elite_position_ratio', instId, limit=limit, max_age_hours=24)
-        headers = ['ts', 'longPosition', 'shortPosition', 'longShortPositionRatio']
-        if len(local) >= limit:
-            logger.info(f"使用本地缓存精英持仓比数据 ({len(local)} 条)")
-            result = []
-            for row in local:
-                result.append(dict(zip(headers[:len(row)], row)))
-            return result
-
-        endpoint = "/api/v5/rubik/stat/contracts/long-short-position-ratio-contract-top-trader"
-        params = {"instId": instId, "period": period, "limit": str(limit)}
-        data = self._request("GET", endpoint, params)
-        if isinstance(data, dict):
-            raw = data.get("data", [])
-        elif isinstance(data, list):
-            raw = data
-        else:
-            raw = []
-        if raw:
-            save_rows = []
-            for item in raw:
-                if isinstance(item, dict):
-                    save_rows.append([
-                        item.get('ts', ''), item.get('longPosition', ''),
-                        item.get('shortPosition', ''), item.get('longShortPositionRatio', '')
-                    ])
-            self._save_to_csv('elite_position_ratio', instId, save_rows, headers)
-        return raw
-
-    def get_option_oi_strike(self, ccy: str, expTime: str = "") -> List[Dict]:
-        """
-        获取期权按行权价的持仓量/成交量分布，用于计算 Max Pain。
-        GET /api/v5/rubik/stat/option/open-interest-volume-strike
-        参数:
-          ccy: 币种如 "BTC", "ETH"（期权底层资产，非合约ID）
-          expTime: 到期日，如 "20250627"，空则返回最近到期日
-        返回: [{strike, callOI, putOI, callVol, putVol}, ...]
-        Max Pain 原理: 期权卖方（做市商）会在到期日推动价格到"最大痛点"——
-        即 (callOI + putOI) 最小的行权价，使买方权利金归零。
-        """
-        cache_key = f"{ccy}_{expTime}" if expTime else ccy
-        local = self._load_latest_from_csv('option_oi_strike', cache_key, limit=1, max_age_hours=2)
-        if local:
-            logger.info(f"使用本地缓存期权持仓分布数据")
-            return []
-
-        endpoint = "/api/v5/rubik/stat/option/open-interest-volume-strike"
-        params = {"ccy": ccy}
-        if expTime:
-            params["expTime"] = expTime
-        data = self._request("GET", endpoint, params)
-        raw = data.get("data", [])
-        if raw:
-            save_data = [{'ts': raw[0].get('ts', datetime.now().isoformat())}]
-            headers = ['ts']
-            self._save_to_csv('option_oi_strike', cache_key, save_data, headers)
-        return raw
-
-    def get_option_oi_ratio(self, ccy: str, period: str = "1H") -> List[Dict]:
-        """
-        获取期权 Put/Call Ratio（PCR），市场情绪温度计。
-        GET /api/v5/rubik/stat/option/open-interest-volume-ratio
-        参数:
-          ccy: 币种如 "BTC", "ETH"
-          period: 周期 "5m"/"1H"/"1D"
-        返回: [{ts, openInterestRatio, volumeRatio}, ...]
-        PCR > 1 = 看跌情绪浓（put 持仓多于 call），PCR > 1.5 = 极端恐慌/底部
-        PCR < 0.7 = 看涨情绪浓（call 持仓多于 put），PCR < 0.5 = 过度乐观/顶部
-        """
-        cache_key = f"{ccy}_{period}"
-        local = self._load_latest_from_csv('option_oi_ratio', cache_key, limit=24, max_age_hours=8)
-        headers = ['ts', 'openInterestRatio', 'volumeRatio']
-        if len(local) >= 12:
-            logger.info(f"使用本地缓存 Put/Call Ratio 数据 ({len(local)} 条)")
-            result = []
-            for row in local:
-                result.append(dict(zip(headers[:len(row)], row)))
-            return result
-
-        endpoint = "/api/v5/rubik/stat/option/open-interest-volume-ratio"
-        params = {"ccy": ccy, "period": period}
-        data = self._request("GET", endpoint, params)
-        if isinstance(data, dict):
-            raw = data.get("data", [])
-        elif isinstance(data, list):
-            raw = data
-        else:
-            raw = []
-        if raw:
-            save_rows = []
-            for item in raw:
-                if isinstance(item, dict):
-                    save_rows.append([
-                        item.get('ts', ''), item.get('openInterestRatio', ''),
-                        item.get('volumeRatio', '')
-                    ])
-            self._save_to_csv('option_oi_ratio', cache_key, save_rows, headers)
-        return raw
-
-    def get_elite_position_trend(self, instId: str) -> Dict[str, List[Dict]]:
-        """
-        多周期精英持仓比趋势数据，用于 AI 精英多空趋向指标（维度25）。
-        返回: {
-            '5m': [{ts, longPosition, shortPosition, longShortPositionRatio}, ...] x 48条,
-            '1H': [...] x 24条,
-            '1D': [...] x 7条,
-        }
-        分析精英仓位比在不同时间周期上的趋势方向，判断大资金是在持续建仓
-        还是悄悄转向，而不仅是看单一时刻的值。
-        NOTE: 若某周期 API 不支持则跳过该周期，不影响其他周期。
-        """
-        result = {}
-        periods = [('5m', 48), ('1H', 24), ('1D', 7)]
-        for period, limit in periods:
-            try:
-                result[period] = self.get_position_ratio_top_trader(instId, period=period, limit=limit)
-            except Exception as e:
-                logger.warning(f"精英持仓趋势 {period} 拉取失败 (将跳过此周期): {e}")
-        return result
-
-    def get_position_tiers(self, instType: str = "SWAP", instFamily: str = "", tdMode: str = "cross") -> List[Dict]:
-        """
-        获取持仓档位信息，用于分析爆仓连锁反应风险。
-        GET /api/v5/public/position-tiers
-        参数:
-          instType: "SWAP" / "FUTURES" / "OPTION"
-          instFamily: 如 "BTC-USDT", "ETH-USDT"
-          tdMode: 交易模式 "cross"(全仓) / "isolated"(逐仓)，必填参数
-        返回: [{uly, instFamily, tier, minSz, maxSz, mmr, imr, maxLever, optMgnFactor}, ...]
-        """
-        local = self._load_latest_from_csv('position_tiers', instFamily, limit=1, max_age_hours=12)
-        if local:
-            logger.info(f"使用本地缓存持仓档位数据")
-            return []
-
-        endpoint = "/api/v5/public/position-tiers"
-        params = {"instType": instType, "tdMode": tdMode}
-        if instFamily:
-            params["instFamily"] = instFamily
-        data = self._request("GET", endpoint, params)
-        if isinstance(data, dict):
-            raw = data.get("data", [])
-        elif isinstance(data, list):
-            raw = data
-        else:
-            raw = []
-        if raw:
-            ts_str = raw[0].get('ts', str(int(time.time() * 1000))) if isinstance(raw[0], dict) else str(int(time.time() * 1000))
-            save_data = [{'ts': ts_str}]
-            headers = ['ts']
-            self._save_to_csv('position_tiers', instFamily, save_data, headers)
-        return raw
-
-    def get_mark_price_candles(self, instId: str, bar: str, limit: int = 100) -> List[List]:
-        endpoint = "/api/v5/market/mark-price-candles"
-        params = {"instId": instId, "bar": bar, "limit": limit}
-        data = self._request("GET", endpoint, params)
-        result = data.get("data", [])
-
-        if result:
-            headers = ['open_time', 'open', 'high', 'low', 'close', 'confirm']
-            self._save_to_csv('mark_candles', instId, result, headers)
-
-        return result
-
-    def get_index_candles(self, instId: str, bar: str, limit: int = 100) -> List[List]:
-        endpoint = "/api/v5/market/index-candles"
-        params = {"instId": instId, "bar": bar, "limit": limit}
-        data = self._request("GET", endpoint, params)
-        result = data.get("data", [])
-
-        if result:
-            headers = ['open_time', 'open', 'high', 'low', 'close', 'confirm']
-            self._save_to_csv('index_candles', instId, result, headers)
-
-        return result
-
-    def download_history_data(self, module: str, instType: str, instIdList: str,
-                              dateAggrType: str, begin: str, end: str) -> List[Dict]:
-        endpoint = "/api/v5/public/market-data-history"
-        params = {
-            "module": module,
-            "instType": instType,
-            "instIdList": instIdList,
-            "dateAggrType": dateAggrType,
-            "begin": begin,
-            "end": end
-        }
-        data = self._request("GET", endpoint, params)
         return data.get("data", [])
+
+    def _send_retry(self, method: str, url: str, params: dict,
+                    body: str, headers: dict, max_retries: int = 3) -> Any:
+        """发送 HTTP 请求，网络错误自动重试（指数退避）。"""
+        last_error = None
+        for attempt in range(max_retries):
+            try:
+                if method.upper() == "GET":
+                    return self._session.get(url, params=params, headers=headers, timeout=30)
+                else:
+                    return self._session.post(url, data=body, headers=headers, timeout=30)
+            except requests.RequestException as e:
+                last_error = e
+                if attempt < max_retries - 1:
+                    wait = 2 ** (attempt + 1)  # 2s → 4s → 8s
+                    logger.warning(f"网络错误 (第{attempt+1}次), {wait}秒后重试: {e}")
+                    time.sleep(wait)
+                else:
+                    logger.error(f"请求失败(已重试{max_retries}次) {method} {url}: {e}")
+        return None
+
+    # ── 公共接口 ────────────────────────────────────────
+
+    def get_klines(self, symbol: str, bar: str = "1D", limit: int = 150) -> List[List[str]]:
+        """
+        获取 K 线数据。
+        bar: 1D, 4H, 1H, 15m, 5m, 1m 等
+        """
+        return self._request("GET", "/api/v5/market/candles", {
+            "instId": symbol,
+            "bar": bar,
+            "limit": str(min(limit, 300)),
+        })
+
+    def get_ticker(self, symbol: str) -> Optional[Dict[str, str]]:
+        """获取最新行情。"""
+        data = self._request("GET", "/api/v5/market/ticker", {"instId": symbol})
+        return data[0] if data else None
+
+    # ── 情绪数据接口（公开API） ──────────────────────────
+
+    def get_funding_rate_history(self, instId: str, limit: int = 90) -> List[Dict]:
+        """获取资金费率历史（按时间升序），每期约8小时。"""
+        data = self._request("GET", "/api/v5/public/funding-rate-history", {
+            "instId": instId,
+            "limit": str(min(limit, 100)),
+        })
+        if not data:
+            return []
+        return sorted(data, key=lambda x: str(x.get("fundingTime", "")))
+
+    def get_open_interest(self, instId: str, period: str = "1D", limit: int = 90) -> List[Dict]:
+        """获取持仓量历史（按时间升序），返回最近N条日级OI数据。"""
+        ccy = instId.split("-")[-2] if len(instId.split("-")) >= 2 else "USDT"
+        data = self._request("GET", "/api/v5/rubik/stat/contracts/open-interest-volume", {
+            "instId": instId,
+            "ccy": ccy,
+            "period": period,
+            "limit": str(min(limit, 100)),
+        })
+        if not data:
+            return []
+        return sorted(data, key=lambda x: str(x.get("ts", "")))
+
+    def get_long_short_ratio(self, instId: str, period: str = "1D", limit: int = 90) -> List[Dict]:
+        """获取多空人数比历史（按时间升序）。"""
+        ccy = instId.split("-")[-2] if len(instId.split("-")) >= 2 else "USDT"
+        data = self._request("GET", "/api/v5/rubik/stat/contracts/long-short-account-ratio", {
+            "instId": instId,
+            "ccy": ccy,
+            "period": period,
+            "limit": str(min(limit, 100)),
+        })
+        if not data:
+            return []
+        return sorted(data, key=lambda x: str(x.get("ts", "")))
+
+    # ── 全市场行情 ──────────────────────────────────────
+
+    def get_tickers(self, instType: str = "SWAP") -> List[Dict]:
+        """获取全市场行情快照（全量返回，不需分页）。"""
+        return self._request_simple("GET", "/api/v5/market/tickers", {"instType": instType}) or []
+
+    def get_top_swaps(self, min_vol_usd: float = 100_000_000, top_n: int = 15,
+                       min_price: float = 0.001) -> List[Dict]:
+        """获取 24h 成交额最高的 USDT 永续合约列表。
+
+        Args:
+            min_vol_usd: 最小 24h 成交额（美元），默认 1 亿
+            top_n: 返回前 N 个
+            min_price: 最低价格阈值，排除极低价 meme 币（volCcy24h 值失真）
+
+        Returns:
+            [{instId, last, volCcy24h, volCcy24h_usd, vol_fmt}]
+        """
+        data = self.get_tickers("SWAP")
+        if not data:
+            return []
+
+        usdt_swaps = []
+        for t in data:
+            instId = t.get("instId", "")
+            if not instId.endswith("-USDT-SWAP"):
+                continue
+
+            # 价格过滤：排除 BONK/PEPE/SHIB/SATS 等微价币，它们的 volCcy24h 失真
+            try:
+                last_price = float(t.get("last", "0"))
+            except (ValueError, TypeError):
+                last_price = 0.0
+            if last_price > 0 and last_price < min_price:
+                continue
+
+            # 计算实际 24h 成交额（美元）
+            vol_str = t.get("volCcy24h", "0")
+            try:
+                vol_usd = float(vol_str)
+            except (ValueError, TypeError):
+                vol_usd = 0.0
+
+            # 极端异常值检测：单币成交额不可能超过 $1 万亿
+            if vol_usd > 1_000_000_000_000:
+                continue
+
+            if vol_usd >= min_vol_usd:
+                usdt_swaps.append({
+                    "instId": instId,
+                    "last": t.get("last", "0"),
+                    "volCcy24h": vol_str,
+                    "volCcy24h_usd": vol_usd,
+                    "vol_fmt": _fmt_volume(vol_usd),
+                })
+
+        usdt_swaps.sort(key=lambda x: x["volCcy24h_usd"], reverse=True)
+        return usdt_swaps[:top_n]
+
+    def get_top_swaps_by_market_cap(self, min_mcap: float = 100_000_000,
+                                     top_n: int = 15, min_price: float = 0.001) -> List[Dict]:
+        """按市值排序获取 USDT 永续合约列表（CoinGecko 市值 + OKX 行情交叉）。
+
+        流程：
+          1. CoinGecko 拉取市值 Top 250
+          2. 取 OKX 全量 SWAP ticker
+          3. 按 symbol 交叉匹配，筛选市值 > min_mcap
+          4. 按市值降序取 top_n
+
+        Args:
+            min_mcap: 最小市值（美元），默认 1 亿
+            top_n: 返回前 N 个
+            min_price: 最低价格阈值
+        """
+        import urllib.request, urllib.error
+
+        # ── Step 1: CoinGecko 市值榜 ──
+        cg_url = (
+            "https://api.coingecko.com/api/v3/coins/markets"
+            "?vs_currency=usd&order=market_cap_desc&per_page=250&page=1"
+            "&sparkline=false&price_change_percentage=24h"
+        )
+        try:
+            req = urllib.request.Request(cg_url, headers={"accept": "application/json"})
+            with urllib.request.urlopen(req, timeout=15) as resp:
+                cg_data = json.loads(resp.read().decode())
+        except Exception as e:
+            logger.warning(f"CoinGecko 市值数据获取失败: {e}")
+            # 回退到按 24h 成交额排序
+            logger.info("回退到按 24h 成交额排序")
+            return self.get_top_swaps(min_vol_usd=100_000_000, top_n=top_n, min_price=min_price)
+
+        # 建立 symbol → market_cap 映射（CG symbol 为小写）
+        cg_map: Dict[str, Dict] = {}
+        for coin in cg_data:
+            sym = coin.get("symbol", "").lower()
+            mcap = coin.get("market_cap") or 0
+            if sym and mcap >= min_mcap:
+                cg_map[sym] = {
+                    "market_cap": mcap,
+                    "name": coin.get("name", sym),
+                    "cg_id": coin.get("id", sym),
+                    "price_change_24h": coin.get("price_change_percentage_24h"),
+                    "total_volume": coin.get("total_volume") or 0,
+                }
+        logger.info(f"CoinGecko 返回 {len(cg_data)} 币种, 市值>{min_mcap/1e6:.0f}M 共 {len(cg_map)} 个")
+
+        # ── Step 2: OKX SWAP ticker ──
+        okx_data = self.get_tickers("SWAP")
+        if not okx_data:
+            logger.warning("OKX ticker 获取失败，回退到成交额排序")
+            return self.get_top_swaps(top_n=top_n)
+
+        # ── Step 3: 交叉匹配 ──
+        matched = []
+        for t in okx_data:
+            instId = t.get("instId", "")
+            if not instId.endswith("-USDT-SWAP"):
+                continue
+            # 提取 symbol: "DOGE-USDT-SWAP" → "doge"
+            okx_sym = instId.replace("-USDT-SWAP", "").lower()
+
+            cg_info = cg_map.get(okx_sym)
+            if cg_info is None:
+                continue
+
+            # 价格过滤
+            try:
+                last_price = float(t.get("last", "0"))
+            except (ValueError, TypeError):
+                last_price = 0.0
+            if last_price > 0 and last_price < min_price:
+                continue
+
+            vol_str = t.get("volCcy24h", "0")
+            try:
+                vol_usd = float(vol_str)
+            except (ValueError, TypeError):
+                vol_usd = 0.0
+
+            if vol_usd > 1_000_000_000_000:
+                continue
+
+            matched.append({
+                "instId": instId,
+                "last": t.get("last", "0"),
+                "volCcy24h": vol_str,
+                "volCcy24h_usd": vol_usd,
+                "vol_fmt": _fmt_volume(vol_usd),
+                "market_cap": cg_info["market_cap"],
+                "mcap_fmt": _fmt_volume(cg_info["market_cap"]),
+                "name": cg_info["name"],
+                "price_change_24h": cg_info.get("price_change_24h"),
+            })
+
+        if not matched:
+            logger.warning("CoinGecko 与 OKX 无匹配币种（市值>100M），回退到成交额排序")
+            return self.get_top_swaps(top_n=top_n)
+
+        # ── Step 4: 按市值降序，取 top_n ──
+        matched.sort(key=lambda x: x["market_cap"], reverse=True)
+        result = matched[:top_n]
+        logger.info(f"市值排序匹配: {len(matched)} 个, 返回 Top {len(result)}")
+        for i, r in enumerate(result):
+            logger.info(f"  {i+1}. {r['instId']}  市值 {r['mcap_fmt']}  24h成交 {r['vol_fmt']}")
+        return result
+
+    # ── 解析辅助 ────────────────────────────────────────
+
+    @staticmethod
+    def parse_klines(raw: List[List[str]]) -> List[Dict[str, float]]:
+        """
+        将 OKX K线原始数据转为标准字典列表（按时间升序）。
+        原始: [ts, o, h, l, c, vol, volCcy, volCcyQuote, confirm]
+        """
+        if not raw:
+            return []
+        rows = []
+        for r in raw:
+            rows.append({
+                "timestamp": int(r[0]),
+                "open":      float(r[1]),
+                "high":      float(r[2]),
+                "low":       float(r[3]),
+                "close":     float(r[4]),
+                "vol":       float(r[5]),
+                "vol_ccy":   float(r[6]),
+            })
+        return sorted(rows, key=lambda x: x["timestamp"])
+
+
+def _fmt_volume(usd: float) -> str:
+    """将美元金额格式化为人类可读形式。"""
+    if usd >= 1_000_000_000:
+        return f"${usd / 1_000_000_000:.2f}B"
+    elif usd >= 1_000_000:
+        return f"${usd / 1_000_000:.2f}M"
+    else:
+        return f"${usd:,.0f}"

@@ -7,7 +7,7 @@ import numpy as np
 import pandas as pd
 from typing import Dict, List, Optional
 
-from detectors import BehaviorTag, DetectionResult
+from .types import BehaviorTag, DetectionResult
 
 logger = logging.getLogger(__name__)
 
@@ -50,34 +50,100 @@ def detect_volume_anomaly(df: pd.DataFrame, symbol: str) -> List[DetectionResult
     return results
 
 
-def detect_wick(df: pd.DataFrame, symbol: str, wick_shadow_ratio: float = 3.0) -> List[DetectionResult]:
-    """插针检测（向下洗盘插针 + 向上诱多插针）"""
+def detect_wick(df: pd.DataFrame, symbol: str, wick_shadow_ratio: float = 3.0,
+                scan_all: bool = True) -> List[DetectionResult]:
+    """
+    插针检测（向下洗盘插针 + 向上诱多插针）
+
+    判断逻辑:
+      - 向下插针: 下影线 > 实体 × wick_shadow_ratio，且最低价跌破前5根K线支撑
+        （跌破后收回 → 洗盘震仓，庄家故意砸出低位吸筹）
+      - 向上插针: 上影线 > 实体 × wick_shadow_ratio，且最高价突破前5根K线阻力
+        （突破后回落 → 诱多出货，庄家拉高骗人接盘）
+
+    参数:
+      wick_shadow_ratio: 影线/实体阈值倍数，默认3.0
+      scan_all: True=扫描全部历史, False=仅最近5根
+    """
     results = []
-    if len(df) < 10: return results
-    open_arr = df['open'].values.astype(float)
-    high_arr = df['high'].values.astype(float)
-    low_arr = df['low'].values.astype(float)
+    if len(df) < 10:
+        return results
+
+    open_arr  = df['open'].values.astype(float)
+    high_arr  = df['high'].values.astype(float)
+    low_arr   = df['low'].values.astype(float)
     close_arr = df['close'].values.astype(float)
-    for i in range(max(0, len(df) - 5), len(df)):
+
+    if hasattr(df, 'timestamp') or 'timestamp' in df.columns:
+        ts_col = df['timestamp'].values if hasattr(df['timestamp'], 'values') else df['timestamp']
+    elif df.index.name == 'timestamp' or 'timestamp' in str(df.index.name):
+        ts_col = df.index
+    else:
+        ts_col = None
+
+    n = len(df)
+    start = 10 if scan_all else max(10, n - 5)  # 前10根用于计算支撑/阻力
+
+    for i in range(start, n):
         body = abs(close_arr[i] - open_arr[i])
-        # ── 向下插针（洗盘震仓）──
+        if body <= 0:
+            continue
+
+        total_range = high_arr[i] - low_arr[i]
+        if total_range <= 0:
+            continue
+
+        date_str = ""
+        if ts_col is not None:
+            try:
+                ts = ts_col[i] if hasattr(ts_col[i], 'strftime') else ts_col.iloc[i]
+                date_str = str(ts)[:10] + " "
+            except Exception:
+                pass
+
+        # ═══ 向下插针（洗盘震仓）═══
         lower_shadow = min(open_arr[i], close_arr[i]) - low_arr[i]
-        if body > 0 and lower_shadow > body * wick_shadow_ratio:
+        lower_ratio = lower_shadow / body if body > 0 else 0
+
+        if lower_ratio >= wick_shadow_ratio:
+            # 该K线最低价是否跌破前5根支撑
             prev_lows = low_arr[max(0, i - 5):i]
-            support = min(prev_lows) if len(prev_lows) > 0 else low_arr[i]
-            if (support - low_arr[i]) / support > 0.01 and close_arr[i] > support:
-                shadow_ratio = lower_shadow / body
-                results.append(DetectionResult(tag=BehaviorTag.WICK_SHAKE_OUT, symbol=symbol, timestamp=time.time(),
-                    confidence=0.75, detail=f"洗盘插针: 最低{low_arr[i]:.4f}跌破{support:.4f}后收回 (影体比{shadow_ratio:.1f}x)"))
-        # ── 向上插针（诱多出货）──
+            support = float(min(prev_lows)) if len(prev_lows) > 0 else low_arr[i]
+            break_support = (support - low_arr[i]) / support if support > 0 else 0
+            # 收回确认：收盘价回到支撑上方
+            recovered = close_arr[i] > support
+
+            if break_support > 0.01 and recovered:
+                confidence = min(0.95, 0.6 + lower_ratio * 0.08)
+                results.append(DetectionResult(
+                    tag=BehaviorTag.WICK_SHAKE_OUT, symbol=symbol,
+                    timestamp=time.time(), confidence=round(confidence, 2),
+                    detail=f"{date_str}向下洗盘针 | 开{open_arr[i]:.4f}→收{close_arr[i]:.4f} | 最低{low_arr[i]:.4f} "
+                           f"跌破支撑{support:.4f}({break_support*100:.1f}%)"
+                           f"→收回 | 影体比{lower_ratio:.1f}x | "
+                           f"振幅{(total_range/close_arr[i]*100):.1f}%"))
+
+        # ═══ 向上插针（诱多出货）═══
         upper_shadow = high_arr[i] - max(open_arr[i], close_arr[i])
-        if body > 0 and upper_shadow > body * wick_shadow_ratio:
+        upper_ratio = upper_shadow / body if body > 0 else 0
+
+        if upper_ratio >= wick_shadow_ratio:
             prev_highs = high_arr[max(0, i - 5):i]
-            resistance = max(prev_highs) if len(prev_highs) > 0 else high_arr[i]
-            if (high_arr[i] - resistance) / resistance > 0.01 and close_arr[i] < resistance:
-                shadow_ratio = upper_shadow / body
-                results.append(DetectionResult(tag=BehaviorTag.WICK_UP_DISTRIBUTION, symbol=symbol, timestamp=time.time(),
-                    confidence=0.75, detail=f"诱多插针: 最高{high_arr[i]:.4f}突破{resistance:.4f}后回落 (影体比{shadow_ratio:.1f}x)"))
+            resistance = float(max(prev_highs)) if len(prev_highs) > 0 else high_arr[i]
+            break_resistance = (high_arr[i] - resistance) / resistance if resistance > 0 else 0
+            # 回落确认：收盘价回到阻力下方
+            fallen_back = close_arr[i] < resistance
+
+            if break_resistance > 0.01 and fallen_back:
+                confidence = min(0.95, 0.6 + upper_ratio * 0.08)
+                results.append(DetectionResult(
+                    tag=BehaviorTag.WICK_UP_DISTRIBUTION, symbol=symbol,
+                    timestamp=time.time(), confidence=round(confidence, 2),
+                    detail=f"{date_str}向上诱多针 | 开{open_arr[i]:.4f}→收{close_arr[i]:.4f} | 最高{high_arr[i]:.4f} "
+                           f"突破阻力{resistance:.4f}({break_resistance*100:.1f}%)"
+                           f"→回落 | 影体比{upper_ratio:.1f}x | "
+                           f"振幅{(total_range/close_arr[i]*100):.1f}%"))
+
     return results
 
 

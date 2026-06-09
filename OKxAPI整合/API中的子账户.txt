@@ -1,0 +1,800 @@
+子账户
+子账户功能模块下的API接口需要身份验证。
+REST API
+查看子账户列表
+仅适用于母账户
+限速：20次/2s
+限速规则：User ID
+权限：读取
+HTTP请求
+GET /api/v5/users/subaccount/list
+请求示例
+import okx.SubAccount as SubAccount
+# API 初始化apikey = "YOUR_API_KEY"secretkey = "YOUR_SECRET_KEY"passphrase = "YOUR_PASSPHRASE"
+flag = "1"  # 实盘:0 , 模拟盘：1subAccountAPI = SubAccount.SubAccountAPI(apikey, secretkey, passphrase, False, flag)
+# 查看子账户列表result = subAccountAPI.get_subaccount_list()print(result)
+请求参数
+参数名	类型	是否必须	描述
+enable	String	否	子账户状态
+true: 正常使用 false: 冻结
+subAcct	String	否	子账户名称
+after	String	否	查询在此之前的内容，值为子账户创建时间戳，Unix时间戳为毫秒数格式
+before	String	否	查询在此之后的内容，值为子账户创建时间戳，Unix时间戳为毫秒数格式
+limit	String	否	分页返回的结果集数量，最大为100，不填默认返回100条
+返回结果
+{
+    "code":"0",
+    "msg":"",
+    "data":[
+        {
+            "canTransOut": false,
+            "enable": true,
+            "frozenFunc": [
+            ],
+            "gAuth": false,
+            "label": "D456DDDLx",
+            "mobile": "",
+            "subAcct": "D456DDDL",
+            "ts": "1659334756000",
+            "type": "1",
+            "uid": "3400***********7413",
+            "subAcctLv": "1",
+            "firstLvSubAcct": "D456DDDL",
+            "ifDma": false
+        }
+    ]}
+返回参数
+参数名	类型	描述
+type	String	子账户类型
+1：普通子账户
+2：资管子账户
+5：托管交易子账户 - Copper
+9：资管交易子账户 - Copper
+12：托管交易子账户 - Komainu
+enable	Boolean	子账户状态
+true：正常使用 false：冻结（全局）
+subAcct	String	子账户名称
+uid	String	子账户UID
+label	String	子账户备注
+mobile	String	子账户绑定手机号
+gAuth	Boolean	子账户是否开启的登录时的谷歌验证
+true：已开启
+false：未开启
+frozenFunc	Array of strings	被冻结的功能
+trading：交易
+convert：闪兑
+transfer：母子账户间资金划转
+withdrawal：提币
+deposit：充值
+flexible_loan：活期借币
+canTransOut	Boolean	是否可以主动转出
+true：可以转出
+false：不可转出
+ts	String	子账户创建时间，Unix时间戳的毫秒数格式 ，如 1597026383085
+subAcctLv	String	子账户层级
+1: 一级子账号
+2: 二级子账户
+firstLvSubAcct	String	一级子账号
+对于 subAcctLv: 1, firstLvSubAcct 与 subAcct 相等。
+对于 subAcctLv: 2, subAcct 属于 firstLvSubAcct。
+ifDma	Boolean	是否为 DMA 经济商子账号。
+true: DMA 经济商子账号。
+false: 非 DMA 经济商子账号。
+创建子账户
+仅适用于母账户，且母账户APIKey必须绑定IP。
+限速：1次/s
+限速规则：User ID
+权限：交易
+HTTP请求
+POST /api/v5/users/subaccount/create-subaccount
+请求示例
+请求参数
+参数名	类型	是否必须	描述
+subAcct	String	是	子账户名称，支持6-20位字母和数字组合（区分大小写，不支持空格符号）
+type	String	是	子账户类型
+1：普通子账户
+5：托管交易子账户 - Copper
+12：托管交易子账户 - Komainu
+label	String	是	API Key的备注，支持6-32位字母（区分大小写），数字，或者特殊字符如: *
+pwd	String	可选	子账户登录密码，仅 KYB 账户必填
+您的密码必须满足以下条件：
+长度为 8 ~ 32 个字符。
+1 个小写字母 (a-z)
+1 个大写字母 (A-Z)
+1 个数字
+1 个符号，如：！@ # $ %
+返回结果
+{
+    "code": "0",
+    "msg": "",
+    "data": [
+        {
+            "label": "123456",
+            "subAcct": "subAccount002",
+            "ts": "1744875304520",
+            "uid": "698827017768230914"
+        }
+    ]}
+返回参数
+参数名	类型	描述
+subAcct	String	子账户名称
+label	String	子账户的备注
+uid	String	子账户 ID
+ts	String	创建时间
+创建子账户的API Key
+仅适用于母账户，且母账户APIKey必须绑定IP。
+限速：1次/s
+限速规则：User ID
+权限：交易
+HTTP请求
+POST /api/v5/users/subaccount/apikey
+请求示例
+请求参数
+参数名	类型	是否必须	描述
+subAcct	String	是	子账户名称，支持6-20位字母和数字组合（区分大小写，不支持空格符号）
+label	String	是	API Key的备注
+passphrase	String	是	API Key密码，8-32位字母数字组合，至少包含一个数字、一个大写字母、一个小写字母、一个特殊字符
+perm	String	否	API Key权限
+read_only：读取
+trade：交易
+ip	String	否	绑定ip地址，多个ip用半角逗号隔开，最多支持20个ip
+安全性考虑，推荐绑定IP
+未绑定IP且拥有交易或提币权限的API key，将在闲置14天之后自动删除。(模拟盘的API key不会被删除)
+返回结果
+{
+    "code": "0",
+    "msg": "",
+    "data": [{
+        "subAcct": "test-1",
+        "label": "v5",
+        "apiKey": "******",
+        "secretKey": "******",
+        "passphrase": "******",
+        "perm": "read_only,trade",
+        "ip": "1.1.1.1,2.2.2.2",
+        "ts": "1597026383085"
+    }]}
+返回参数
+参数名	类型	描述
+subAcct	String	子账户名称
+label	String	APIKey的备注
+apiKey	String	API公钥
+secretKey	String	API的私钥
+passphrase	String	APIKey的密码
+perm	String	APIKey权限
+ip	String	APIKey绑定的ip地址
+ts	String	创建时间
+查询子账户的API Key
+仅适用于母账户
+限速：20次/2秒
+限速规则：User ID
+权限：读取
+HTTP请求
+GET /api/v5/users/subaccount/apikey
+请求示例
+请求参数
+参数名	类型	是否必须	描述
+subAcct	String	是	子账户名称
+apiKey	String	否	API的公钥
+返回结果
+{
+    "code":"0",
+    "msg":"",
+    "data":[
+        {
+            "label":"v5",
+            "apiKey":"arg13sdfgs",
+            "perm":"read_only,trade",
+            "ip":"1.1.1.1,2.2.2.2",
+            "ts":"1597026383085"
+        },
+        {
+            "label":"v5.1",
+            "apiKey":"arg13sdfgs",
+            "perm":"read_only",
+            "ip":"1.1.1.1,2.2.2.2",
+            "ts":"1597026383085"
+        }
+    ]}
+返回参数
+参数名	类型	描述
+label	String	API Key的备注
+apiKey	String	API Key公钥
+perm	String	API Key权限
+read_only：读取
+trade ：交易
+ip	String	API Key绑定的ip地址
+ts	String	创建时间
+重置子账户的APIKey
+仅适用于母账户，且母账户APIKey必须绑定IP。
+限速：1次/s
+限速规则：User ID
+权限：交易
+HTTP请求
+POST /api/v5/users/subaccount/modify-apikey
+请求示例
+import okx.SubAccount as SubAccount
+# API 初始化apikey = "YOUR_API_KEY"secretkey = "YOUR_SECRET_KEY"passphrase = "YOUR_PASSPHRASE"
+flag = "1"  # 实盘:0 , 模拟盘：1subAccountAPI = SubAccount.SubAccountAPI(apikey, secretkey, passphrase, False, flag)
+# 重置子账户的APIKeyresult = subAccountAPI.reset_subaccount_apikey(
+    subAcct="hahawang1",
+    apiKey="",
+    ip="")print(result)
+请求参数
+参数名	类型	是否必须	描述
+subAcct	String	是	子账户名称
+apiKey	String	是	子账户API的公钥
+label	String	否	子账户APIKey的备注，如果填写该字段，则该字段会被重置
+perm	String	否	子账户APIKey权限
+read_only：读取
+trade：交易
+多个权限用半角逗号隔开。
+如果填写该字段，则该字段会被重置。
+ip	String	否	子账户APIKey绑定ip地址，多个ip用半角逗号隔开，最多支持20个ip。
+如果填写该字段，那该字段会被重置。
+如果ip传""，则表示解除IP绑定。
+返回结果
+{
+    "code": "0",
+    "msg": "",
+    "data": [{
+        "subAcct": "yongxu",
+        "label": "v5",
+        "apiKey": "******",
+        "perm": "read,trade",
+        "ip": "1.1.1.1",
+        "ts": "1597026383085"
+    }]}
+返回参数
+参数名	类型	描述
+subAcct	String	子账户名称
+label	String	APIKey的备注
+apiKey	String	API公钥
+perm	String	APIKey权限
+ip	String	APIKey绑定的ip地址
+ts	String	创建时间
+删除子账户的API Key
+仅适用于母账户，且母账户APIKey必须绑定IP。
+限速：1次/s
+限速规则：User ID
+权限：交易
+HTTP请求
+POST /api/v5/users/subaccount/delete-apikey
+请求示例
+请求参数
+参数名	类型	是否必须	描述
+subAcct	String	是	子账户名称
+apiKey	String	是	API的公钥
+返回结果
+{
+    "code": "0",
+    "msg": "",
+    "data": [{
+        "subAcct": "test00001"
+    }]}
+返回参数
+参数名	类型	描述
+subAcct	String	子账户名称
+获取子账户交易账户余额
+获取子账户交易账户余额（适用于母账户）
+限速：6次/2s
+限速规则：User ID
+权限：读取
+HTTP请求
+GET /api/v5/account/subaccount/balances
+请求示例
+import okx.SubAccount as SubAccount
+# API 初始化apikey = "YOUR_API_KEY"secretkey = "YOUR_SECRET_KEY"passphrase = "YOUR_PASSPHRASE"
+flag = "1"  # 实盘:0 , 模拟盘：1subAccountAPI = SubAccount.SubAccountAPI(apikey, secretkey, passphrase, False, flag)
+# 获取子账户交易账户余额result = subAccountAPI.get_account_balance(
+    subAcct="hahawang1")print(result)
+请求参数
+参数名	类型	是否必须	描述
+subAcct	String	是	子账户名称
+返回结果
+{
+    "code": "0",
+    "data": [
+        {
+            "adjEq": "101.46752000000001",
+            "availEq": "",
+            "borrowFroz": "0",
+            "delta": "0",
+            "deltaLever": "0",
+            "deltaNeutralStatus": "0",
+            "details": [
+                {
+                    "autoLendStatus": "off",
+                    "autoLendMtAmt": "0",
+                    "accAvgPx": "",
+                    "availBal": "101.5",
+                    "availEq": "101.5",
+                    "borrowFroz": "0",
+                    "cashBal": "101.5",
+                    "ccy": "USDT",
+                    "clSpotInUseAmt": "",
+                    "crossLiab": "0",
+                    "colRes": "0",
+                    "collateralEnabled": false,
+                    "collateralRestrict": false,
+                    "colBorrAutoConversion": "0",
+                    "disEq": "101.46752000000001",
+                    "eq": "101.5",
+                    "eqUsd": "101.46752000000001",
+                    "fixedBal": "0",
+                    "frozenBal": "0",
+                    "frpType": "0",
+                    "imr": "",
+                    "interest": "0",
+                    "isoEq": "0",
+                    "isoLiab": "0",
+                    "isoUpl": "0",
+                    "liab": "0",
+                    "maxLoan": "1015.0000000000001",
+                    "maxSpotInUse": "",
+                    "mgnRatio": "",
+                    "mmr": "",
+                    "notionalLever": "",
+                    "openAvgPx": "",
+                    "ordFrozen": "0",
+                    "rewardBal": "",
+                    "smtSyncEq": "0",
+                    "spotBal": "",
+                    "spotCopyTradingEq": "0",
+                    "spotInUseAmt": "",
+                    "spotIsoBal": "0",
+                    "spotUpl": "",
+                    "spotUplRatio": "",
+                    "stgyEq": "0",
+                    "totalPnl": "",
+                    "totalPnlRatio": "",
+                    "twap": "0",
+                    "uTime": "1663854334734",
+                    "upl": "0",
+                    "uplLiab": "0"
+                }
+            ],
+            "imr": "0",
+            "isoEq": "0",
+            "mgnRatio": "",
+            "mmr": "0",
+            "notionalUsd": "0",
+            "notionalUsdForBorrow": "0",
+            "notionalUsdForFutures": "0",
+            "notionalUsdForOption": "0",
+            "notionalUsdForSwap": "0",
+            "ordFroz": "0",
+            "totalEq": "101.46752000000001",
+            "uTime": "1739332269934",
+            "upl": "0"
+        }
+    ],
+    "msg": ""}
+返回参数
+参数名	类型	描述
+uTime	String	账户信息的更新时间，Unix时间戳的毫秒数格式，如 1597026383085
+totalEq	String	美金层面权益
+isoEq	String	美金层面逐仓仓位权益
+适用于合约模式/跨币种保证金模式/组合保证金模式
+adjEq	String	美金层面有效保证金
+适用于现货模式/跨币种保证金模式/组合保证金模式
+availEq	String	账户美金层面可用保证金，排除因总质押借币上限而被限制的币种
+适用于跨币种保证金模式/组合保证金模式
+ordFroz	String	美金层面全仓挂单占用保证金
+仅适用于现货模式/跨币种保证金模式/组合保证金模式
+imr	String	美金层面占用保证金
+适用于现货模式/跨币种保证金模式/组合保证金模式
+mmr	String	美金层面维持保证金
+适用于现货模式/跨币种保证金模式/组合保证金模式
+borrowFroz	String	账户美金层面潜在借币占用保证金
+仅适用于现货模式/跨币种保证金模式/组合保证金模式。在其他账户模式下为""。
+mgnRatio	String	美金层面维持保证金率
+适用于现货模式/跨币种保证金模式/组合保证金模式
+notionalUsd	String	以美金价值为单位的持仓数量，即仓位美金价值
+适用于现货模式/跨币种保证金模式/组合保证金模式
+notionalUsdForBorrow	String	借币金额（美元价值）
+适用于现货模式/跨币种保证金模式/组合保证金模式
+notionalUsdForSwap	String	永续合约持仓美元价值
+适用于跨币种保证金模式/组合保证金模式
+notionalUsdForFutures	String	交割合约持仓美元价值
+适用于跨币种保证金模式/组合保证金模式
+notionalUsdForOption	String	期权持仓美元价值
+适用于现货模式/跨币种保证金模式/组合保证金模式
+upl	String	账户层面全仓未实现盈亏（美元单位）
+适用于跨币种保证金模式/组合保证金模式
+delta	String	Delta (USD)
+deltaLever	String	Delta权益比率
+deltaLever = delta/totalEq
+deltaNeutralStatus	String	Delta 风险状态
+0: 普通
+1: 限制划转
+2: 仅支持降低 Delta - 相同基础货币的现货、交割和永续合约视为同一标的资产。同一标的资产内，仅能新下一笔降低 Delta 值的订单，且下单时不应存在其他挂单。如果触发此限制，且您的账户 Delta 大于 500,000 USD，您的所有限价、市价、高级限价单挂单将被撤销。
+details	Array of objects	各币种资产详细信息
+> ccy	String	币种
+> eq	String	币种总权益
+> cashBal	String	币种余额
+> uTime	String	币种余额信息的更新时间，Unix时间戳的毫秒数格式，如 1597026383085
+> isoEq	String	币种逐仓仓位权益
+适用于合约模式/跨币种保证金模式/组合保证金模式
+> availEq	String	可用保证金
+适用于合约模式/跨币种保证金模式/组合保证金模式
+> disEq	String	美金层面币种折算权益
+> fixedBal	String	抄底宝、逃顶宝功能的币种冻结金额
+> availBal	String	可用余额
+> frozenBal	String	币种占用金额
+> ordFrozen	String	挂单冻结数量
+适用于现货模式/合约模式/跨币种保证金模式
+> liab	String	币种负债额
+值为正数，如 "21625.64"
+适用于现货模式/跨币种保证金模式/组合保证金模式
+> upl	String	未实现盈亏
+适用于合约模式/跨币种保证金模式/组合保证金模式
+> uplLiab	String	由于仓位未实现亏损导致的负债
+适用于跨币种保证金模式/组合保证金模式
+> crossLiab	String	币种全仓负债额
+适用于现货模式/跨币种保证金模式/组合保证金模式
+> isoLiab	String	币种逐仓负债额
+适用于跨币种保证金模式/组合保证金模式
+> rewardBal	String	体验金余额
+> mgnRatio	String	币种全仓维持保证金率，衡量账户内某项资产风险的指标
+适用于合约模式且有全仓仓位时
+> imr	String	币种维度全仓占用保证金
+适用于合约模式且有全仓仓位时
+> mmr	String	币种维度全仓维持保证金
+适用于合约模式且有全仓仓位时
+> interest	String	计息，应扣未扣利息
+值为正数，如 9.01
+适用于现货模式/跨币种保证金模式/组合保证金模式
+> twap	String	当前负债币种触发自动换币的风险
+0、1、2、3、4、5其中之一，数字越大代表您的负债币种触发自动换币概率越高
+适用于现货模式/跨币种保证金模式/组合保证金模式
+> frpType	String	自动换币类型
+0：未发生自动换币
+1：基于用户的自动换币
+2：基于平台借币限额的自动换币
+
+当twap>=1时返回1或2代表自动换币风险类型，适用于现货模式/跨币种保证金模式/组合保证金模式
+> maxLoan	String	币种最大可借
+适用于现货模式/跨币种保证金模式/组合保证金模式 的全仓
+> eqUsd	String	币种权益美金价值
+> borrowFroz	String	币种美金层面潜在借币占用保证金
+仅适用于现货模式/跨币种保证金模式/组合保证金模式。在其他账户模式下为""。
+> notionalLever	String	币种杠杆倍数
+适用于合约模式
+> stgyEq	String	策略权益
+> isoUpl	String	逐仓未实现盈亏
+适用于合约模式/跨币种保证金模式/组合保证金模式
+> spotInUseAmt	String	现货对冲占用数量
+适用于组合保证金模式
+> clSpotInUseAmt	String	用户自定义现货占用数量
+适用于组合保证金模式
+> maxSpotInUse	String	系统计算得到的最大可能现货占用数量
+适用于组合保证金模式
+> spotIsoBal	String	现货逐仓余额
+仅适用于现货带单/跟单
+适用于现货模式/合约模式
+> smtSyncEq	String	合约智能跟单权益
+默认为0，仅适用于跟单人。
+> spotCopyTradingEq	String	现货智能跟单权益
+默认为0，仅适用于跟单人。
+> spotBal	String	现货余额 ，单位为 币种，比如 BTC。详情
+> openAvgPx	String	现货开仓成本价 单位 USD。 详情
+> accAvgPx	String	现货累计成本价 单位 USD。 详情
+> spotUpl	String	现货未实现收益，单位 USD。 详情
+> spotUplRatio	String	现货未实现收益率。详情
+> totalPnl	String	现货累计收益，单位 USD。 详情
+> totalPnlRatio	String	现货累计收益率。详情
+> colRes	String	平台维度质押限制状态
+0：限制未触发
+1：限制未触发，但该币种接近平台质押上限
+2：限制已触发。该币种不可用作新订单的保证金，这可能会导致下单失败。但它仍会被计入账户有效保证金，保证金率不会收到影响。
+更多详情，请参阅平台总质押借币上限说明。
+> colBorrAutoConversion	String	基于平台质押借币限额的自动换币风险指标。分为1-5多个等级，数字越大，触发自动换币的可能性越大。默认值为0，表示当前无风险。5表示该用户正在进行自动换币，4代表该用户即将被进行自动换币，1/2/3表示存在自动换币风险。
+适用于现货模式/合约模式/跨币种保证金模式/组合保证金模式
+当某币种的全平台质押借币量超出平台总上限一定比例时，对于质押该币种且借币量较大的用户，平台将通过自动换币降低质押借币风险。请减少该币种的质押数量或偿还负债，以降低风险。
+更多详情，请参阅平台总质押借币上限说明。
+> collateralRestrict	Boolean	（已弃用，请使用colRes）
+> collateralEnabled	Boolean	true：质押币
+false：非质押币
+适用于`跨币种保证金模式
+> colBorrAutoConversion	String	表示当某个币种的抵押借贷达到平台限制且用户交易账户持有该币种时，强制还款的指标
+分为5档，从1到5，数字越小代表强制还款强度越弱。默认为0，表示当前无强制还款风险；5代表用户当前正经历强制还款。
+适用于现货模式/合约模式/跨币种保证金模式/组合保证金模式
+> autoLendStatus	String	自动借出状态
+unsupported：该币种不支持自动借出
+off：自动借出功能关闭
+pending：自动借出功能开启但未匹配
+active：自动借出功能开启且已匹配
+> autoLendMtAmt	String	自动借出已匹配量
+当 autoLendStatus 为 unsupported/off/pending 时返回 0
+当 autoLendStatus 为 active 时返回已匹配量
+ 当前账户等级下无效字段返回""
+获取子账户资金账户余额
+获取子账户资金账户余额（适用于母账户）
+限速：6次/2s
+限速规则：User ID
+权限：读取
+HTTP请求
+GET /api/v5/asset/subaccount/balances
+请求示例
+import okx.SubAccount as SubAccount
+# API 初始化apikey = "YOUR_API_KEY"secretkey = "YOUR_SECRET_KEY"passphrase = "YOUR_PASSPHRASE"
+flag = "1"  # 实盘:0 , 模拟盘：1subAccountAPI = SubAccount.SubAccountAPI(apikey, secretkey, passphrase, False, flag)
+# 获取子账户资金账户余额result = subAccountAPI.get_funding_balance(
+    subAcct="hahawang1")print(result)
+请求参数
+参数名	类型	是否必须	描述
+subAcct	String	是	子账户名称
+ccy	String	否	币种，如 BTC
+支持多币种查询（不超过20个），币种之间半角逗号分隔
+返回结果
+{
+    "code": "0",
+    "msg": "",
+    "data": [{
+            "availBal": "37.11827078",
+            "bal": "37.11827078",
+            "ccy": "ETH",
+            "frozenBal": "0"
+        }
+    ]}
+返回参数
+参数名	类型	描述
+ccy	String	币种，如 BTC
+bal	String	余额
+frozenBal	String	冻结余额（不可用）
+availBal	String	可用余额
+获取子账户最大可转余额
+获取子账户最大可转余额（适用于母账户）。不指定币种会返回所有拥有的币种资产可划转数量。
+限速：20次/2s
+限速规则：User ID
+权限：读取
+HTTP请求
+GET /api/v5/account/subaccount/max-withdrawal
+请求示例
+请求参数
+参数名	类型	是否必须	描述
+subAcct	String	是	子账户名称
+ccy	String	否	币种，如 BTC
+支持多币种查询（不超过20个），币种之间半角逗号分隔
+返回结果
+{
+   "code":"0",
+   "data":[
+      {
+         "ccy":"BTC",
+         "maxWd":"3",
+         "maxWdEx":"",
+         "spotOffsetMaxWd":"3",
+         "spotOffsetMaxWdEx":""
+      },
+      {
+         "ccy":"ETH",
+         "maxWd":"15",
+         "maxWdEx":"",
+         "spotOffsetMaxWd":"15",
+         "spotOffsetMaxWdEx":""
+      },
+      {
+         "ccy":"USDT",
+         "maxWd":"10600",
+         "maxWdEx":"",
+         "spotOffsetMaxWd":"10600",
+         "spotOffsetMaxWdEx":""
+      }
+   ],
+   "msg":""}
+Response Parameters
+参数名	类型	描述
+ccy	String	币种
+maxWd	String	最大可划转数量（不包含跨币种保证金模式借币金额）
+maxWdEx	String	最大可划转数量（包含跨币种保证金模式借币金额）
+spotOffsetMaxWd	String	现货对冲不支持借币最大可转数量
+仅适用于组合保证金模式
+spotOffsetMaxWdEx	String	现货对冲支持借币的最大可转数量
+仅适用于组合保证金模式
+查询子账户转账记录
+仅适用于母账户。转账记录可追溯至2022年9月28日。
+限速：6次/s
+限速规则：User ID
+权限：读取
+HTTP请求
+GET /api/v5/asset/subaccount/bills
+请求示例
+import okx.SubAccount as SubAccount
+# API 初始化apikey = "YOUR_API_KEY"secretkey = "YOUR_SECRET_KEY"passphrase = "YOUR_PASSPHRASE"
+flag = "1"  # 实盘:0 , 模拟盘：1subAccountAPI = SubAccount.SubAccountAPI(apikey, secretkey, passphrase, False, flag)
+# 查询子账户转账记录result = subAccountAPI.bills()print(result)
+请求参数
+参数名	类型	是否必须	描述
+ccy	String	否	币种，如 BTC
+type	String	否	划转类型
+0：母账户转子账户
+1：子账户转母账户
+subAcct	String	否	子账户名称
+after	String	否	查询在billId创建时间之前(不包含)的内容，值为时间戳，Unix时间戳的毫秒数格式，如 1597026383085
+before	String	否	查询在billId创建时间之后(不包含)的内容，值为时间戳，Unix时间戳的毫秒数格式，如 1597026383085
+limit	String	否	分页返回的结果集数量，最大为100，不填默认返回100条
+返回结果
+{
+    "code": "0",
+    "msg": "",
+    "data": [
+      {
+        "amt": "1.1",
+        "billId": "89887685",
+        "ccy": "USDT",
+        "subAcct": "hahatest1",
+        "ts": "1712560959000",
+        "type": "0"
+      }
+    ]}
+返回参数
+参数名	类型	描述
+billId	String	账单ID
+ccy	String	划转币种
+amt	String	划转金额
+type	String	账单类型
+subAcct	String	子账户名称
+ts	String	账单ID创建时间，Unix时间戳的毫秒数格式，如 1597026383085
+查询托管子账户转账记录
+仅适用于交易团队母账户查看托管给自己的托管子账户转账记录
+限速：6次/s
+限速规则：User ID
+权限：读取
+HTTP请求
+GET /api/v5/asset/subaccount/managed-subaccount-bills
+请求示例
+请求参数
+参数名	类型	是否必须	描述
+ccy	String	否	币种，如 BTC
+type	String	否	划转类型
+0：母账户转子账户
+1：子账户转母账户
+subAcct	String	否	子账户名称
+subUid	String	否	子账户UID
+after	String	否	查询在billId创建时间之前(不包含)的内容，值为时间戳，Unix时间戳的毫秒数格式，如 1597026383085
+before	String	否	查询在billId创建时间之后(不包含)的内容，值为时间戳，Unix时间戳的毫秒数格式，如 1597026383085
+limit	String	否	分页返回的结果集数量，最大为100，默认返回100条
+返回结果
+{
+    "code": "0",
+    "msg": "",
+    "data": [{
+        "billId": "12344",
+        "type": "1",
+        "ccy": "BTC",
+        "amt": "2",
+        "subAcct": "test-1",
+        "subUid": "xxxxxx",
+        "ts": "1597026383085"
+    }]}
+返回参数
+参数名	类型	描述
+billId	String	账单ID
+ccy	String	划转币种
+amt	String	划转金额
+type	String	账单类型
+subAcct	String	子账户名称
+subUid	String	子账户UID
+ts	String	账单ID创建时间，Unix时间戳的毫秒数格式，如 1597026383085
+子账户间资金划转
+母账户控制子账户与子账户之间划转（仅适用于母账户）
+调用时，APIKey 需要有交易权限
+限速：1次/s
+限速规则：User ID
+权限：交易
+HTTP请求
+POST /api/v5/asset/subaccount/transfer
+请求示例
+import okx.SubAccount as SubAccount
+# API 初始化apikey = "YOUR_API_KEY"secretkey = "YOUR_SECRET_KEY"passphrase = "YOUR_PASSPHRASE"
+flag = "1"  # 实盘:0 , 模拟盘：1subAccountAPI = SubAccount.SubAccountAPI(apikey, secretkey, passphrase, False, flag)
+# 子账户间资金划转result = subAccountAPI.subAccount_transfer(
+    ccy="USDT",
+    amt="10",
+    froms="6",
+    to="6",
+    fromSubAccount="test-1",
+    toSubAccount="test-2")print(result)
+请求参数
+参数名	类型	是否必须	描述
+ccy	String	是	币种
+amt	String	是	划转数量
+from	String	是	转出子账户类型
+6：资金账户
+18：交易账户
+to	String	是	转入子账户类型
+6：资金账户
+18：交易账户
+fromSubAccount	String	是	转出子账户的子账户名称
+toSubAccount	String	是	转入子账户的子账户名称
+loanTrans	Boolean	否	是否支持跨币种保证金模式或组合保证金模式下的借币转入/转出
+默认false
+omitPosRisk	String	否	是否忽略仓位风险
+默认为false
+仅适用于组合保证金模式
+返回结果
+{
+    "code":"0",
+    "msg":"",
+    "data":[
+        {
+            "transId":"12345",
+        }
+    ]}
+返回参数
+参数名	类型	描述
+transId	String	划转ID
+设置子账户主动转出权限
+设置子账户转出权限（仅适用于母账户），默认可转出至母账户。
+限速：1次/s
+限速规则：User ID
+权限：交易
+HTTP请求
+POST /api/v5/users/subaccount/set-transfer-out
+请求示例
+import okx.SubAccount as SubAccount
+# API 初始化apikey = "YOUR_API_KEY"secretkey = "YOUR_SECRET_KEY"passphrase = "YOUR_PASSPHRASE"
+flag = "1"  # 实盘:0 , 模拟盘：1subAccountAPI = SubAccount.SubAccountAPI(apikey, secretkey, passphrase, False, flag)
+# 设置子账户主动转出权限result = subAccountAPI.set_permission_transfer_out(
+    subAcct="hahawang1",
+    canTransOut=False)print(result)
+请求参数
+参数名	类型	是否必须	描述
+subAcct	String	是	子账户名称，支持设置多个（不超过20个），子账户名称之间半角逗号分隔
+canTransOut	Boolean	否	是否可以主动转出，默认为true
+false：不可转出
+true：可以转出
+返回结果
+{
+    "code": "0",
+    "msg": "",
+    "data": [
+        {
+            "subAcct": "Test001",
+            "canTransOut": true
+        },
+        {
+            "subAcct": "Test002",
+            "canTransOut": true
+        }
+    ]}
+
+返回参数
+参数名	类型	描述
+subAcct	String	子账户名称
+canTransOut	Boolean	是否可以主动转出
+false：不可转出
+true：可以转出
+查看被托管的子账户列表
+交易团队使用该接口查看当前托管中的子账户列表
+限速：1次/s
+限速规则：User ID
+权限：读取
+HTTP请求
+GET /api/v5/users/entrust-subaccount-list
+请求示例
+import okx.SubAccount as SubAccount
+# API 初始化apikey = "YOUR_API_KEY"secretkey = "YOUR_SECRET_KEY"passphrase = "YOUR_PASSPHRASE"
+flag = "1"  # 实盘:0 , 模拟盘：1subAccountAPI = SubAccount.SubAccountAPI(apikey, secretkey, passphrase, False, flag)
+# 查看被托管的子账户列表result = subAccountAPI.get_entrust_subaccount_list()print(result)
+请求参数
+参数名	类型	是否必须	描述
+subAcct	String	否	子账户名称
+返回结果
+{
+    "code":"0",
+    "msg":"",
+    "data":[
+       {
+          "subAcct":"test-1"
+       },
+       {
+          "subAcct":"test-2"
+       }
+    ]}
+返回参数
+参数名	类型	描述
+subAcct	String	子账户名称
+

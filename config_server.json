@@ -1,14 +1,15 @@
+// 服务器 config.json 模板（复制后填入你的路径和密钥）
 {
     "SYMBOL": [
-        "BTC-USDT-SWAP"
+        "BEAT-USDT-SWAP"
     ],
-    "DEEPSEEK_API_KEY": "",
-    "OKX_API_KEY": "",
-    "OKX_SECRET_KEY": "",
-    "OKX_PASSPHRASE": "",
+    "DEEPSEEK_API_KEY": "your-deepseek-key",
+    "OKX_API_KEY": "your-okx-api-key",
+    "OKX_SECRET_KEY": "your-okx-secret",
+    "OKX_PASSPHRASE": "your-okx-passphrase",
     "SIMULATED": "0",
-    "HISTORY_DIR": "D:/ceshi2",
-    "OUTPUT_DIR": "D:/ceshi",
+    "HISTORY_DIR": "/data/okx/history",
+    "OUTPUT_DIR": "/data/okx/output",
     "DAILY_LOOKBACK": 150,
     "ADVANCED_INDICATORS": true,
     "AI_TEMPERATURE": 0.3,
@@ -25,8 +26,5 @@
     "LIQUIDATION_HUNT_ENABLED": true,
     "LS_LONG_EXTREME": 2.0,
     "LS_SHORT_EXTREME": 0.7,
-    "HUNT_LEVERAGE_LEVELS": [
-        20,
-        10,
-        5
-    ],
+    "HUNT_LEVERAGE_LEVELS": [20, 10, 5]
+}

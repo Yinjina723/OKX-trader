@@ -1,0 +1,2065 @@
+资金账户
+资金功能模块下的API接口需要身份验证。
+REST API
+获取币种列表
+获取当前用户KYC实体支持的币种列表。
+限速：6 次/s
+限速规则：User ID
+权限：读取
+HTTP 请求
+GET /api/v5/asset/currencies
+请求示例
+import okx.Funding as Funding
+# API 初始化apikey = "YOUR_API_KEY"secretkey = "YOUR_SECRET_KEY"passphrase = "YOUR_PASSPHRASE"
+flag = "0"  # 实盘: 0, 模拟盘: 1fundingAPI = Funding.FundingAPI(apikey, secretkey, passphrase, False, flag)
+# 获取币种列表result = fundingAPI.get_currencies()print(result)
+请求参数
+参数	类型	是否必须	描述
+ccy	String	否	币种，如 BTC
+支持多币种查询，币种之间半角逗号分隔
+返回结果
+{
+  "code": "0",
+  "msg": "",
+  "data": [
+    {
+        "burningFeeRate": "",
+        "canDep": true,
+        "canInternal": true,
+        "canWd": true,
+        "ccy": "BTC",
+        "chain": "BTC-Bitcoin",
+        "ctAddr": "",
+        "depEstOpenTime": "",
+        "depQuotaFixed": "",
+        "depQuoteDailyLayer2": "",
+        "fee": "0.00005",
+        "logoLink": "https://static.coinall.ltd/cdn/oksupport/asset/currency/icon/btc20230419112752.png",
+        "mainNet": true,
+        "maxFee": "0.00005",
+        "maxFeeForCtAddr": "",
+        "maxWd": "500",
+        "minDep": "0.0005",
+        "minDepArrivalConfirm": "1",
+        "minFee": "0.00005",
+        "minFeeForCtAddr": "",
+        "minInternal": "0.0001",
+        "minWd": "0.0005",
+        "minWdUnlockConfirm": "2",
+        "name": "Bitcoin",
+        "needTag": false,
+        "usedDepQuotaFixed": "",
+        "usedWdQuota": "0",
+        "wdEstOpenTime": "",
+        "wdQuota": "10000000",
+        "wdTickSz": "8"
+    }
+  ]}
+返回参数
+参数名	类型	描述
+ccy	String	币种名称，如 BTC
+name	String	币种名称，不显示则无对应名称
+logoLink	String	币种Logo链接
+chain	String	币种链信息
+有的币种下有多个链，必须要做区分，如USDT下有USDT-ERC20，USDT-TRC20多个链
+ctAddr	String	合约地址
+canDep	Boolean	当前是否可充值
+false：不可链上充值
+true：可以链上充值
+canWd	Boolean	当前是否可提币
+false：不可链上提币
+true：可以链上提币
+canInternal	Boolean	当前是否可内部转账
+false：不可内部转账
+true：可以内部转账
+depEstOpenTime	String	充值预期开放时间，Unix时间戳的毫秒数格式，如 1597026383085
+如果 canDep 为 true，则返回 ""
+wdEstOpenTime	String	提币预期开放时间，Unix时间戳的毫秒数格式，如 1597026383085
+如果 canWd 为 true，则返回 ""
+minDep	String	币种单笔最小充值量
+minWd	String	币种单笔最小链上提币量
+minInternal	String	币种单笔最小内部转账量
+无单笔最大内部转账量限制，受24小时内提币额度(wdQuota)限制
+maxWd	String	币种单笔最大链上提币量
+wdTickSz	String	提币精度,表示小数点后的位数。提币手续费精度与提币精度保持一致。
+内部转账提币精度为小数点后8位。
+wdQuota	String	过去24小时内提币额度（包含链上提币和内部转账），单位为USD
+usedWdQuota	String	过去24小时内已用提币额度，单位为USD
+fee	String	固定的提币手续费数量
+适用于链上提币
+minFee	String	
+该字段已废弃
+maxFee	String	
+该字段已废弃
+minFeeForCtAddr	String	
+该字段已废弃
+maxFeeForCtAddr	String	
+该字段已废弃
+burningFeeRate	String	燃烧费率，如 0.05 代表 5%。
+部分币种会收取燃烧费用。燃烧费用按照提币数量（不含gas fee） 乘以 燃烧费率，在提币数量基础上扣除。
+适用于链上提币
+mainNet	Boolean	当前链是否为主链
+needTag	Boolean	当前链提币是否需要标签（tag/memo）信息，如 EOS该字段为true
+minDepArrivalConfirm	String	充值到账最小网络确认数。币已到账但不可提。
+minWdUnlockConfirm	String	提现解锁最小网络确认数
+depQuotaFixed	String	充币固定限额，单位为USD
+没有充币限制则返回""
+usedDepQuotaFixed	String	已用充币固定额度，单位为USD
+没有充币限制则返回""
+depQuoteDailyLayer2	String	Layer2网络每日充值上限
+获取资金账户余额
+获取资金账户所有资产列表，查询各币种的余额、冻结和可用等信息。
+ 只返回余额大于0的币资产信息。
+限速：6次/s
+限速规则：User ID
+权限：读取
+HTTP请求
+GET /api/v5/asset/balances
+请求示例
+import okx.Funding as Funding
+# API 初始化apikey = "YOUR_API_KEY"secretkey = "YOUR_SECRET_KEY"passphrase = "YOUR_PASSPHRASE"
+flag = "0"  # 实盘: 0, 模拟盘: 1fundingAPI = Funding.FundingAPI(apikey, secretkey, passphrase, False, flag)
+# 获取资金账户余额result = fundingAPI.get_balances()print(result)
+请求参数
+参数	类型	是否必须	描述
+ccy	String	否	币种，如 BTC
+支持多币种查询（不超过20个），币种之间半角逗号分隔
+返回结果
+{
+    "code": "0",
+    "msg": "",
+    "data": [{
+            "availBal": "37.11827078",
+            "bal": "37.11827078",
+            "ccy": "ETH",
+            "frozenBal": "0"
+        }
+    ]}
+返回参数
+参数名	类型	描述
+ccy	String	币种，如 BTC
+bal	String	余额
+frozenBal	String	冻结余额
+availBal	String	可用余额
+获取不可交易资产
+获取当前用户 KYC 实体支持的不可交易资产列表。
+限速：6 次/s
+限速规则：User ID
+权限：读取
+HTTP 请求
+GET /api/v5/asset/non-tradable-assets
+请求示例
+import okx.Funding as Funding
+# API 初始化apikey = "YOUR_API_KEY"secretkey = "YOUR_SECRET_KEY"passphrase = "YOUR_PASSPHRASE"
+flag = "1"  # 实盘: 0, 模拟盘: 1fundingAPI = Funding.FundingAPI(apikey, secretkey, passphrase, False, flag)
+result = fundingAPI.get_non_tradable_assets()print(result)
+请求参数
+参数	类型	是否必须	描述
+ccy	String	否	币种，如 BTC
+支持多币种查询（不超过20个），币种之间半角逗号分隔
+返回结果
+{
+    "code": "0",
+    "data": [
+        {
+            "bal": "989.84719571",
+            "burningFeeRate": "",
+            "canWd": true,
+            "ccy": "CELT",
+            "chain": "CELT-OKTC",
+            "ctAddr": "f403fb",
+            "fee": "2",
+            "feeCcy": "USDT",
+            "logoLink": "https://static.coinall.ltd/cdn/assets/imgs/221/460DA8A592400393.png",
+            "minWd": "0.1",
+            "name": "",
+            "needTag": false,
+            "wdAll": false,
+            "wdTickSz": "8"
+        },
+        {
+            "bal": "0.001",
+            "burningFeeRate": "",
+            "canWd": true,
+            "ccy": "MEME",
+            "chain": "MEME-ERC20",
+            "ctAddr": "09b760",
+            "fee": "5",
+            "feeCcy": "USDT",
+            "logoLink": "https://static.coinall.ltd/cdn/assets/imgs/207/2E664E470103C613.png",
+            "minWd": "0.001",
+            "name": "MEME Inu",
+            "needTag": false,
+            "wdAll": false,
+            "wdTickSz": "8"
+        }
+    ],
+    "msg": ""}
+返回参数
+参数名	类型	描述
+ccy	String	币种名称，如 CELT
+name	String	币种中文名称，不显示则无对应名称
+logoLink	String	币种Logo链接
+bal	String	可提余额
+canWd	Boolean	是否可提
+false: 不可提 true: 可提
+chain	String	支持提币的链
+minWd	String	币种单笔最小提币量
+wdAll	Boolean	该币种资产是否必须一次性全部提取
+fee	String	提币固定手续费。提币手续费精度为小数点后8位。
+feeCcy	String	提币固定手续费单位
+burningFeeRate	String	燃烧费率，如 0.05 代表 5%。
+部分币种会收取燃烧费用。燃烧费用按照提币数量（不含gas fee） 乘以 燃烧费率，在提币数量基础上扣除。
+ctAddr	String	合约地址后6位
+wdTickSz	String	提币精度,表示小数点后的位数
+needTag	Boolean	提币的链是否需要标签（tag/memo）信息
+获取账户资产估值
+查看账户资产估值
+限速：1次/s
+限速规则：User ID
+权限：读取
+HTTP请求
+GET /api/v5/asset/asset-valuation
+请求示例
+import okx.Funding as Funding
+# API 初始化apikey = "YOUR_API_KEY"secretkey = "YOUR_SECRET_KEY"passphrase = "YOUR_PASSPHRASE"
+flag = "0"  # 实盘: 0, 模拟盘: 1fundingAPI = Funding.FundingAPI(apikey, secretkey, passphrase, False, flag)
+# 获取账户资产估值result = fundingAPI.get_asset_valuation()print(result)
+请求参数
+参数	类型	是否必须	描述
+ccy	String	否	资产估值对应的单位
+BTC 、USDT
+USD 、CNY 、JPY、KRW、RUB、EUR
+VND 、IDR 、INR、PHP、THB、TRY
+AUD 、SGD 、ARS、SAR、AED、IQD
+默认为BTC为单位的估值
+返回结果
+{
+    "code": "0",
+    "data": [
+        {
+            "details": {
+                "classic": "124.6",
+                "earn": "1122.73",
+                "funding": "0.09",
+                "trading": "2544.28"
+            },
+            "totalBal": "3790.09",
+            "ts": "1637566660769"
+        }
+    ],
+    "msg": ""}
+返回参数
+参数名	类型	描述
+totalBal	String	账户总资产估值
+ts	String	数据更新时间，Unix时间戳的毫秒数格式，如 1597026383085
+details	Object	各个账户的资产估值
+> funding	String	资金账户
+> trading	String	交易账户
+> classic	String	经典账户 (已废弃)
+> earn	String	金融账户
+资金划转
+调用时，API Key 需要有交易权限。
+支持母账户的资金账户划转到交易账户，母账户到子账户的资金账户和交易账户划转。
+子账户默认可转出至母账户，划转到同一母账户下的其他子账户，需要先调用 设置子账户主动转出权限 接口进行授权。
+ 请求的成功或失败不一定反映实际的划转结果，建议通过调用"获取资金划转状态"接口来确认最终结果。
+限速：2 次/s
+限速规则：User ID + Currency
+权限：交易
+HTTP 请求
+POST /api/v5/asset/transfer
+请求示例
+import okx.Funding as Funding
+# API 初始化apikey = "YOUR_API_KEY"secretkey = "YOUR_SECRET_KEY"passphrase = "YOUR_PASSPHRASE"
+flag = "0"  # 实盘: 0, 模拟盘: 1fundingAPI = Funding.FundingAPI(apikey, secretkey, passphrase, False, flag)
+# 资金划转result = fundingAPI.funds_transfer(
+    ccy="USDT",
+    amt="1.5",
+    from_="6",
+    to="18")print(result)
+请求参数
+参数名	类型	是否必须	描述
+type	String	否	划转类型
+0：账户内划转
+1：母账户转子账户(仅适用于母账户APIKey)
+2：子账户转母账户(仅适用于母账户APIKey)
+3：子账户转母账户(仅适用于子账户APIKey)
+4：子账户转子账户(仅适用于子账户APIKey，且目标账户需要是同一母账户下的其他子账户。子账户主动转出权限默认是关闭的，权限调整参考 设置子账户主动转出权限。)
+默认是0
+如果您希望通过母账户API Key控制子账户之间的划转，参考接口 子账户间资金划转
+ccy	String	是	划转币种，如 USDT
+amt	String	是	划转数量
+from	String	是	转出账户
+6：资金账户
+18：交易账户
+to	String	是	转入账户
+6：资金账户
+18：交易账户
+subAcct	String	可选	子账户名称
+当type为1/2/4时，该字段必填
+loanTrans	Boolean	否	是否支持现货模式/跨币种保证金模式/组合保证金模式下的借币转出
+true：支持借币转出
+false：不支持借币转出
+默认为false
+omitPosRisk	String	否	是否忽略仓位风险
+默认为false
+仅适用于组合保证金模式
+clientId	String	否	客户自定义ID
+字母（区分大小写）与数字的组合，可以是纯字母、纯数字且长度要在1-32位之间。
+返回结果
+{
+  "code": "0",
+  "msg": "",
+  "data": [
+    {
+      "transId": "754147",
+      "ccy": "USDT",
+      "clientId": "",
+      "from": "6",
+      "amt": "0.1",
+      "to": "18"
+    }
+  ]}
+返回参数
+参数名	类型	描述
+transId	String	划转 ID
+ccy	String	划转币种
+from	String	转出账户
+amt	String	划转量
+to	String	转入账户
+clientId	String	客户自定义ID
+获取资金划转状态
+获取最近2个星期内的资金划转状态数据
+限速：10 次/s
+限速规则：User ID
+权限：读取
+HTTP 请求
+GET /api/v5/asset/transfer-state
+请求示例
+import okx.Funding as Funding
+# API 初始化apikey = "YOUR_API_KEY"secretkey = "YOUR_SECRET_KEY"passphrase = "YOUR_PASSPHRASE"
+flag = "1"  # 实盘: 0, 模拟盘: 1fundingAPI = Funding.FundingAPI(apikey, secretkey, passphrase, False, flag)
+# 获取资金划转状态result = fundingAPI.transfer_state(
+    transId="248424899",
+    type="0")print(result)
+
+请求参数
+参数名	类型	是否必须	描述
+transId	String	可选	划转ID
+transId和clientId必须传一个，若传两个，以transId为主
+clientId	String	可选	客户自定义ID
+type	String	否	划转类型
+0：账户内划转
+1：母账户转子账户(仅适用于母账户APIKey)
+2：子账户转母账户(仅适用于母账户APIKey)
+3：子账户转母账户(仅适用于子账户APIKey)
+4：子账户转子账户(仅适用于子账户APIKey，且目标账户需要是同一母账户下的其他子账户)
+默认是0
+对于Custody账户该参数可以不传或者传0。
+返回结果
+{
+    "code": "0",
+    "data": [
+        {
+            "amt": "1.5",
+            "ccy": "USDT",
+            "clientId": "",
+            "from": "18",
+            "instId": "", //已废弃
+            "state": "success",
+            "subAcct": "test",
+            "to": "6",
+            "toInstId": "", //已废弃
+            "transId": "1",
+            "type": "1"
+        }
+    ],
+    "msg": ""}
+返回参数
+参数名	类型	描述
+transId	String	划转 ID
+clientId	String	客户自定义 ID
+ccy	String	划转币种
+amt	String	划转量
+type	String	划转类型
+0：账户内划转
+1：母账户转子账户(仅适用于母账户APIKey)
+2：子账户转母账户(仅适用于母账户APIKey)
+3：子账户转母账户(仅适用于子账户APIKey)
+4：子账户转子账户(仅适用于子账户APIKey，且目标账户需要是同一母账户下的其他子账户)
+from	String	转出账户
+6：资金账户
+18：交易账户
+to	String	转入账户
+6：资金账户
+18：交易账户
+subAcct	String	子账户名称
+instId	String	已废弃
+toInstId	String	已废弃
+state	String	转账状态
+success：成功
+pending：处理中
+failed：失败
+获取资金流水
+查询最近一个月内资金账户账单流水
+限速：6 次/s
+限速规则：User ID
+权限：读取
+HTTP 请求
+GET /api/v5/asset/bills
+请求示例
+import okx.Funding as Funding
+# API 初始化apikey = "YOUR_API_KEY"secretkey = "YOUR_SECRET_KEY"passphrase = "YOUR_PASSPHRASE"
+flag = "0"  # 实盘: 0, 模拟盘: 1fundingAPI = Funding.FundingAPI(apikey, secretkey, passphrase, False, flag)
+# 获取资金流水result = fundingAPI.get_bills()print(result)
+请求参数
+参数名	类型	是否必须	描述
+ccy	String	否	币种
+type	String	否	账单类型
+1：充值
+2：提现
+13：撤销提现
+20：转出至子账户（主体是母账户）
+21：从子账户转入（主体是母账户）
+22：转出到母账户（主体是子账户）
+23：母账户转入（主体是子账户）
+28：领取
+47：系统冲正
+48：活动得到
+49：活动送出
+68：手续费返佣(通过返佣卡)
+72：收币
+73：送币
+74：送币退还
+75：[活期简单赚币] 申购
+76：[活期简单赚币] 赎回
+77：[Jumpstart] 派发
+78：[Jumpstart] 锁定
+80：[DEFI/锁仓挖矿] 产品申购
+82：[DEFI/锁仓挖矿] 产品赎回
+83：挖矿收益
+84：违约金
+89：存币收益
+116：法币创建订单
+117：法币完成订单
+118：法币取消订单
+124：[Jumpstart] 解锁
+130：从交易账户转入
+131：转出至交易账户
+132：[P2P] 客服冻结
+133：[P2P] 客服解冻
+134：[P2P] 客服转交
+135：跨链兑换
+137：[ETH质押] 申购
+138：[ETH质押] 兑换
+139：[ETH质押] 收益
+146：客户回馈
+150：节点返佣
+151：邀请奖励
+152：经纪商返佣
+160：双币赢申购
+161：双币赢回款
+162：双币赢收益
+163：双币赢退款
+172：[节点计划] 助力人返佣
+173：[节点计划] 手续费返现
+174：Jumpstart支付
+175：锁定质押物
+176：借款转入
+177：添加质押物
+178：减少质押物
+179：还款
+180：释放质押物
+181：偿还空投糖果
+185：[经纪商] 闪兑返佣
+187：[经纪商] 闪兑划转
+189：盲盒奖励
+195：不可交易资产提币
+196：不可交易资产提币撤销
+197：不可交易资产充值
+198：不可交易资产减少
+199：不可交易资产增加
+200：买入
+202：价格锁定申购
+203：价格锁定回款
+204：价格锁定收益
+205：价格锁定退款
+207：双币赢精简版申购
+208：双币赢精简版回款
+209：双币赢精简版收益
+210：双币赢精简版退款
+212：[活期借币] 多币种借贷锁定质押物
+215：[活期借币] 多币种借贷释放质押物
+217：[活期借币] 多币种借贷借款转入
+218：[活期借币] 多币种借贷还款
+232：[活期借币] 利息补贴转出
+220：已下架数字货币
+221：提币手续费支出
+222：提币手续费退款
+223：合约带单分润
+225：鲨鱼鳍申购
+226：鲨鱼鳍回款
+227：鲨鱼鳍收益
+228：鲨鱼鳍退款
+229：空投发放
+232：利息补贴入账
+233：经纪商佣金补偿
+240：雪球申購
+241：雪球回款
+242：雪球收益
+243：雪球交易失败
+249：海鸥申购
+250：海鸥回款
+251：海鸥收益
+252：海鸥退款
+263：策略分润
+265：信号收入
+266：现货带单分润
+270：DCD经纪商划转
+271：DCD经纪商返佣
+272：[闪兑] 买入数字货币/法币
+273：[闪兑] 卖出数字货币/法币
+284：[Custody] 转出交易子账户
+285：[Custody] 转入交易子账户
+286：[Custody] 转出托管资金账户
+287：[Custody] 转入托管资金账户
+288：[Custody] 托管资金入金
+289：[Custody] 托管资金出金
+299：推荐节点返佣
+300：手续费折扣返现
+303：雪球做市商转账
+
+
+
+
+
+
+311：系统转入小额资产
+313：发送礼物
+314：收到礼物
+315：礼物退回
+328：[SOL质押] 流动性质押收益
+329：[SOL质押] 流动性质押申购
+330：[SOL质押] 流动性质押铸币
+331：[SOL质押] 流动性质押赎回
+332：[SOL质押] 流动性质押结算
+333：体验金收益
+339：[定期简单赚币] 订单提交
+340：[定期简单赚币] 订单失败退款
+341：[定期简单赚币] 订单赎回
+342：[定期简单赚币] 本金发放
+343：[定期简单赚币] 收益发放
+344：[定期简单赚币] 补偿收益发放
+345：[机构借贷] 本金还款
+346：[机构借贷] 利息还款
+347：[机构借贷] 逾期罚款
+348：[BTC质押] 申购
+349：[BTC质押] 赎回
+350：[BTC质押] 收益
+351：[机构借贷] 发放贷款
+354：策略奖励发放
+361：已关闭的子账户余额转入
+372：资产锁定
+373：解除资产锁定
+400：自动借币利息
+408：自动赚币（USDG赚币）利息
+476：云交易所转出
+477：云交易所转入
+clientId	String	否	转账或提币的客户自定义ID
+字母（区分大小写）与数字的组合，可以是纯字母、纯数字且长度要在1-32位之间。
+after	String	否	查询在此之前的内容，值为时间戳，Unix 时间戳为毫秒数格式，如 1597026383085
+before	String	否	查询在此之后的内容，值为时间戳，Unix 时间戳为毫秒数格式，如 1597026383085
+limit	String	否	分页返回的结果集数量，最大为 100，不填默认返回 100 条
+返回结果
+{
+  "code": "0",
+  "msg": "",
+  "data": [
+    {
+      "billId": "12344",
+      "ccy": "BTC",
+      "clientId": "",
+      "balChg": "2",
+      "bal": "12",
+      "type": "1",
+      "ts": "1597026383085",
+      "notes": ""
+    }
+  ]}
+返回参数
+参数名	类型	描述
+billId	String	账单 ID
+ccy	String	账户余额币种
+clientId	String	转账或提币的客户自定义ID
+balChg	String	账户层面的余额变动数量
+bal	String	账户层面的余额数量
+type	String	账单类型
+notes	String	备注
+ts	String	账单创建时间，Unix 时间戳的毫秒数格式，如 1597026383085
+获取资金流水全历史
+查询资金账户的所有历史账单流水记录，可追溯至2021年2月1日。
+ ⚠️ 重要提示：数据每30秒更新一次。更新频率可能因数据量而异 - 请注意在高流量期间可能出现延迟。
+限速：1 次/s
+限速规则：User ID
+权限：读取
+HTTP 请求
+GET /api/v5/asset/bills-history
+请求示例
+import okx.Funding as Funding
+# API 初始化apikey = "YOUR_API_KEY"secretkey = "YOUR_SECRET_KEY"passphrase = "YOUR_PASSPHRASE"
+flag = "0"  # 实盘: 0, 模拟盘: 1fundingAPI = Funding.FundingAPI(apikey, secretkey, passphrase, False, flag)
+# 获取资金流水result = fundingAPI.get_bills_history()print(result)
+请求参数
+参数名	类型	是否必须	描述
+ccy	String	否	币种
+type	String	否	账单类型
+1：充值
+2：提现
+13：撤销提现
+20：转出至子账户（主体是母账户）
+21：从子账户转入（主体是母账户）
+22：转出到母账户（主体是子账户）
+23：母账户转入（主体是子账户）
+28：领取
+47：系统冲正
+48：活动得到
+49：活动送出
+68：手续费返佣(通过返佣卡)
+72：收币
+73：送币
+74：送币退还
+75：[活期简单赚币] 申购
+76：[活期简单赚币] 赎回
+77：[Jumpstart] 派发
+78：[Jumpstart] 锁定
+80：[DEFI/锁仓挖矿] 产品申购
+82：[DEFI/锁仓挖矿] 产品赎回
+83：挖矿收益
+84：违约金
+89：存币收益
+116：法币创建订单
+117：法币完成订单
+118：法币取消订单
+124：[Jumpstart] 解锁
+130：从交易账户转入
+131：转出至交易账户
+132：[P2P] 客服冻结
+133：[P2P] 客服解冻
+134：[P2P] 客服转交
+135：跨链兑换
+137：[ETH质押] 申购
+138：[ETH质押] 兑换
+139：[ETH质押] 收益
+146：客户回馈
+150：节点返佣
+151：邀请奖励
+152：经纪商返佣
+160：双币赢申购
+161：双币赢回款
+162：双币赢收益
+163：双币赢退款
+172：[节点计划] 助力人返佣
+173：[节点计划] 手续费返现
+174：Jumpstart支付
+175：锁定质押物
+176：借款转入
+177：添加质押物
+178：减少质押物
+179：还款
+180：释放质押物
+181：偿还空投糖果
+185：[经纪商] 闪兑返佣
+187：[经纪商] 闪兑划转
+189：盲盒奖励
+195：不可交易资产提币
+196：不可交易资产提币撤销
+197：不可交易资产充值
+198：不可交易资产减少
+199：不可交易资产增加
+200：买入
+202：价格锁定申购
+203：价格锁定回款
+204：价格锁定收益
+205：价格锁定退款
+207：双币赢精简版申购
+208：双币赢精简版回款
+209：双币赢精简版收益
+210：双币赢精简版退款
+212：[活期借币] 多币种借贷锁定质押物
+215：[活期借币] 多币种借贷释放质押物
+217：[活期借币] 多币种借贷借款转入
+218：[活期借币] 多币种借贷还款
+232：[活期借币] 利息补贴转出
+220：已下架数字货币
+221：提币手续费支出
+222：提币手续费退款
+223：合约带单分润
+225：鲨鱼鳍申购
+226：鲨鱼鳍回款
+227：鲨鱼鳍收益
+228：鲨鱼鳍退款
+229：空投发放
+232：利息补贴入账
+233：经纪商佣金补偿
+240：雪球申購
+241：雪球回款
+242：雪球收益
+243：雪球交易失败
+249：海鸥申购
+250：海鸥回款
+251：海鸥收益
+252：海鸥退款
+263：策略分润
+265：信号收入
+266：现货带单分润
+270：DCD经纪商划转
+271：DCD经纪商返佣
+272：[闪兑] 买入数字货币/法币
+273：[闪兑] 卖出数字货币/法币
+284：[Custody] 转出交易子账户
+285：[Custody] 转入交易子账户
+286：[Custody] 转出托管资金账户
+287：[Custody] 转入托管资金账户
+288：[Custody] 托管资金入金
+289：[Custody] 托管资金出金
+299：推荐节点返佣
+300：手续费折扣返现
+303：雪球做市商转账
+
+
+
+
+
+
+311：系统转入小额资产
+313：发送礼物
+314：收到礼物
+315：礼物退回
+328：[SOL质押] 流动性质押收益
+329：[SOL质押] 流动性质押申购
+330：[SOL质押] 流动性质押铸币
+331：[SOL质押] 流动性质押赎回
+332：[SOL质押] 流动性质押结算
+333：体验金收益
+339：[定期简单赚币] 订单提交
+340：[定期简单赚币] 订单失败退款
+341：[定期简单赚币] 订单赎回
+342：[定期简单赚币] 本金发放
+343：[定期简单赚币] 收益发放
+344：[定期简单赚币] 补偿收益发放
+345：[机构借贷] 本金还款
+346：[机构借贷] 利息还款
+347：[机构借贷] 逾期罚款
+348：[BTC质押] 申购
+349：[BTC质押] 赎回
+350：[BTC质押] 收益
+351：[机构借贷] 发放贷款
+354：策略奖励发放
+361：已关闭的子账户余额转入
+372：资产锁定
+373：解除资产锁定
+400：自动借币利息
+408：自动赚币（USDG赚币）利息
+476：云交易所转出
+477：云交易所转入
+clientId	String	否	转账或提币的客户自定义ID
+字母（区分大小写）与数字的组合，可以是纯字母、纯数字且长度要在1-32位之间。
+after	String	否	查询在此之前的内容，值为时间戳或账单记录ID，Unix 时间戳为毫秒数格式，如 1597026383085
+before	String	否	查询在此之后的内容，值为时间戳，Unix 时间戳为毫秒数格式，如 1597026383085
+limit	String	否	分页返回的结果集数量，最大为 100，不填默认返回 100 条
+pagingType	String	否	分页类型
+1：按账单记录时间戳分页
+2：按账单记录ID分页
+默认值为1
+返回结果
+{
+  "code": "0",
+  "msg": "",
+  "data": [
+    {
+      "billId": "12344",
+      "ccy": "BTC",
+      "clientId": "",
+      "balChg": "2",
+      "bal": "12",
+      "type": "1",
+      "ts": "1597026383085",
+      "notes": ""
+    }
+  ]}
+返回参数
+参数名	类型	描述
+billId	String	账单 ID
+ccy	String	账户余额币种
+clientId	String	转账或提币的客户自定义ID
+balChg	String	账户层面的余额变动数量
+bal	String	账户层面的余额数量
+type	String	账单类型
+notes	String	备注
+ts	String	账单创建时间，Unix 时间戳的毫秒数格式，如 1597026383085
+获取充值地址信息
+获取各个币种的充值地址，包括曾使用过的老地址。
+限速：6次/s
+限速规则：User ID
+权限：读取
+HTTP请求
+GET /api/v5/asset/deposit-address
+请求示例
+import okx.Funding as Funding
+# API 初始化apikey = "YOUR_API_KEY"secretkey = "YOUR_SECRET_KEY"passphrase = "YOUR_PASSPHRASE"
+flag = "0"  # 实盘: 0, 模拟盘: 1fundingAPI = Funding.FundingAPI(apikey, secretkey, passphrase, False, flag)
+# 获取充值地址信息result = fundingAPI.get_deposit_address(
+    ccy="USDT")print(result)
+请求参数
+参数	类型	是否必须	描述
+ccy	String	是	币种，如BTC
+返回结果
+{
+    "code": "0",
+    "data": [
+        {
+            "chain": "BTC-Bitcoin",
+            "ctAddr": "",
+            "ccy": "BTC",
+            "to": "6",
+            "addr": "39XNxK1Ryqgg3Bsyn6HzoqV4Xji25pNkv6",
+            "verifiedName":"John Corner",
+            "selected": true
+        },
+        {
+            "chain": "BTC-OKC",
+            "ctAddr": "",
+            "ccy": "BTC",
+            "to": "6",
+            "addr": "0x66d0edc2e63b6b992381ee668fbcb01f20ae0428",
+            "verifiedName":"John Corner",
+            "selected": true
+        },
+        {
+            "chain": "BTC-ERC20",
+            "ctAddr": "5807cf",
+            "ccy": "BTC",
+            "to": "6",
+            "addr": "0x66d0edc2e63b6b992381ee668fbcb01f20ae0428",
+            "verifiedName":"John Corner",
+            "selected": true
+        }
+    ],
+    "msg": ""}
+返回参数
+参数名	类型	描述
+addr	String	充值地址
+tag	String	部分币种充值需要标签，若不需要则不返回此字段
+memo	String	部分币种充值需要 memo，若不需要则不返回此字段
+pmtId	String	部分币种充值需要此字段（payment_id），若不需要则不返回此字段
+addrEx	Object	充值地址备注，部分币种充值需要，若不需要则不返回此字段
+如币种TONCOIN的充值地址备注标签名为comment,则该字段返回：{'comment':'123456'}
+ccy	String	币种，如BTC
+chain	String	币种链信息
+有的币种下有多个链，必须要做区分，如USDT下有USDT-ERC20，USDT-TRC20多个链
+to	String	转入账户
+6：资金账户 18：交易账户
+某些主体用户(如巴西)只支持充值到交易账户
+verifiedName	String	(接受方)已验证姓名
+selected	Boolean	该地址是否为页面选中的地址
+ctAddr	String	合约地址后6位
+获取充值记录
+根据币种，充值状态，时间范围获取充值记录，按照时间倒序排列，默认返回 100 条数据。
+支持Websocket订阅，参考 充值信息频道。
+限速：6次/s
+限速规则：User ID
+权限：读取
+HTTP 请求
+GET /api/v5/asset/deposit-history
+请求示例
+import okx.Funding as Funding
+# API 初始化apikey = "YOUR_API_KEY"secretkey = "YOUR_SECRET_KEY"passphrase = "YOUR_PASSPHRASE"
+flag = "0"  # 实盘: 0, 模拟盘: 1fundingAPI = Funding.FundingAPI(apikey, secretkey, passphrase, False, flag)
+# 获取充值记录result = fundingAPI.get_deposit_history()print(result)
+请求参数
+参数名	类型	是否必须	描述
+ccy	String	否	币种名称，如 BTC
+depId	String	否	充值记录 ID
+fromWdId	String	否	内部转账发起者提币申请 ID
+如果该笔充值来自于内部转账，则该字段展示内部转账发起者的提币申请 ID
+txId	String	否	区块转账哈希记录
+type	String	否	充值方式
+3：内部转账
+4：链上充值
+state	String	否	充值状态
+0：等待确认
+1：确认到账
+2：充值成功
+8：因该币种暂停充值而未到账，恢复充值后自动到账
+11：命中地址黑名单
+12：账户或充值被冻结
+13：子账户充值拦截
+14：KYC限额
+17：钱包地址正等待国际转账规则认证
+after	String	否	查询在此之前的内容，值为时间戳，Unix 时间戳为毫秒数格式，如 1654041600000
+before	String	否	查询在此之后的内容，值为时间戳，Unix 时间戳为毫秒数格式，如 1656633600000
+limit	string	否	返回的结果集数量，默认为100，最大为100，不填默认返回100条
+返回结果
+{
+  "code": "0",
+  "msg": "",
+  "data": [
+    {
+        "actualDepBlkConfirm": "2",
+        "amt": "1",
+        "areaCodeFrom": "",
+        "ccy": "USDT",
+        "chain": "USDT-TRC20",
+        "depId": "88****33",
+        "from": "",
+        "fromWdId": "",
+        "state": "2",
+        "to": "TN4hGjVXMzy*********9b4N1aGizqs",
+        "ts": "1674038705000",
+        "txId": "fee235b3e812********857d36bb0426917f0df1802"
+    }
+  ]}
+返回参数
+参数名	类型	描述
+ccy	String	币种名称，如 BTC
+chain	String	币种链信息
+有的币种下有多个链，必须要做区分，如USDT下有USDT-ERC20，USDT-TRC20多个链
+amt	String	充值数量
+from	String	充值账户
+如果该笔充值来自于内部转账，则该字段展示内部转账发起者的账户信息，可以是手机号或邮箱（脱敏），其他情况返回""
+areaCodeFrom	String	如果from为手机号，该字段为该手机号的区号
+to	String	到账地址
+如果该笔充值来自于链上充值，则该字段展示链上地址，其他情况返回""
+txId	String	区块转账哈希记录
+ts	String	充值记录创建时间，Unix 时间戳的毫秒数格式，如 1655251200000
+state	String	充值状态
+0：等待确认
+1：确认到账
+2：充值成功
+8：因该币种暂停充值而未到账，恢复充值后自动到账
+11：命中地址黑名单
+12：账户或充值被冻结
+13：子账户充值拦截
+14：KYC限额
+depId	String	充值记录 ID
+fromWdId	String	内部转账发起者提币申请 ID
+如果该笔充值来自于内部转账，则该字段展示内部转账发起者的提币申请 ID，其他情况返回""
+actualDepBlkConfirm	String	最新的充币网络确认数
+ 关于充值状态
+等待确认是没有达到充币确认数。
+确认到账是够充币确认数，且币已经到账户中，但是不可提。
+充值成功是当前账户完成到提币确认，可以提出。
+提币
+支持资金账户资产提币。普通子账户不支持提币。
+ API只能提币到免认证地址/账户上，通过 WEB/APP 可以设置免认证地址。 关于标签
+某些币种如XRP充币时同时需要一个充值地址和标签（又名memo/payment_id），标签是一种保证您的充币地址唯一性的数字串，与充币地址成对出现并一一对应。请您务必遵守正确的充值步骤，在提币时输入完整信息，否则将面临丢失币的风险！
+对于有标签的币种，如果是OKX用户间的提币，请走内部转账不要走链上提币。 下列内容仅适用于居住地为阿拉伯联合酋长国的用户
+根据您所在国家或地区的法律法规，一定比例的用户资产必须存储在冷钱包中。我们会不定期进行冷热钱包资产转移，但如果热钱包中的资产不足以满足用户提币需求，我们将需要进行额外步骤将冷钱包资产转移到热钱包，这可能会导致提币延迟最多24小时。
+更多详情参考(https://www.okx.com/zh-hans/help/what-is-a-segregated-wallet-and-why-is-my-withdrawal-delayed) 部分主体下的用户提币需要传入附加信息
+巴哈马主体参考： https://www.okx.com/docs-v5/log_en/#2024-08-08-withdrawal-api-adjustment-for-bahama-entity-users
+限速：6次/s
+限速规则：User ID
+权限：提币
+HTTP请求
+POST /api/v5/asset/withdrawal
+请求示例
+import okx.Funding as Funding
+# API 初始化apikey = "YOUR_API_KEY"secretkey = "YOUR_SECRET_KEY"passphrase = "YOUR_PASSPHRASE"
+flag = "0"  # 实盘: 0, 模拟盘: 1fundingAPI = Funding.FundingAPI(apikey, secretkey, passphrase, False, flag)
+# 提币result = fundingAPI.withdrawal(
+    ccy="USDT",
+    toAddr="TXtvfb7cdrn6VX9H49mgio8bUxZ3DGfvYF",
+    amt="100",
+    dest="4",
+    chain="USDT-TRC20")print(result)
+请求参数
+参数名	类型	是否必须	描述
+ccy	String	是	币种，如 USDT
+amt	String	是	提币数量
+该数量不包含手续费。提币时需预留足够的手续费。
+链上提币所需网络手续费可以通过接口 获取币种列表 获取
+内部转账无需手续费
+dest	String	是	提币方式
+3：内部转账
+4：链上提币
+toAddr	String	是	toAddr必须是认证过的地址/账户。如果选择链上提币，某些数字货币地址格式为地址:标签，如 ARDOR-7JF3-8F2E-QUWZ-CAN7F:123456
+如果选择内部转账，toAddr必须是接收方地址，可以是UID（仅白名单用户）、邮箱、手机或者账户名（只有子账户才有账户名）。
+toAddrType	String	否	地址类型
+1: 钱包地址、邮箱、手机号、登录账户名
+2: UID（仅适用于 dest=3）
+chain	String	可选	币种链信息
+如USDT下有USDT-ERC20，USDT-TRC20多个链
+如果不填此参数，则默认为主链
+对于无效资产提币，不填此参数，则默认为唯一的提币链
+适用于链上提币，链信息可以通过接口 获取币种列表 获取
+areaCode	String	可选	手机区号，如 86
+当toAddr为手机号时，该参数必填
+适用于内部转账
+rcvrInfo	Object	可选	接收方信息
+特定主体用户做链上提币/闪电网络提币 需要提供此信息
+> walletType	String	是	钱包类型
+exchange：提币到交易所钱包
+private：提币到私人钱包
+对于钱包接收方为公司的，rcvrFirstName可以填公司名称，rcvrLastName可以填"N/A"，地址信息可以填写公司注册地址。
+> exchId	String	可选	交易所 ID
+可以通过 获取交易所列表（公共） 接口查询支持的交易所
+如果交易所不在支持的交易所列表中，该字段填0
+适用于walletType=exchange
+> rcvrFirstName	String	可选	接收方名字，如 Bruce
+> rcvrLastName	String	可选	接收方姓氏，如 Wayne
+> rcvrCountry	String	可选	接收方所在国家，如 United States
+必须输入英文国家名称，或者两字母国家代码(ISO 3166-1)。输入内容参考下方国家信息表中国家名称(英)，国家代码
+> rcvrCountrySubDivision	String	可选	接收方所在州/省，如 California
+> rcvrTownName	String	可选	接收方所在城镇，如 San Jose
+> rcvrStreetName	String	可选	接收方所在街道地址，如 Clementi Avenue 1
+clientId	String	否	客户自定义ID
+字母（区分大小写）与数字的组合，可以是纯字母、纯数字且长度要在1-32位之间。
+返回结果
+{
+    "code": "0",
+    "msg": "",
+    "data": [{
+        "amt": "0.1",
+        "wdId": "67485",
+        "ccy": "BTC",
+        "clientId": "",
+        "chain": "BTC-Bitcoin"
+    }]}
+返回参数
+参数名	类型	描述
+ccy	String	提币币种
+chain	String	币种链信息
+有的币种下有多个链，必须要做区分，如USDT下有USDT-ERC20，USDT-TRC20多个链
+amt	String	提币数量
+wdId	String	提币申请ID
+clientId	String	客户自定义ID
+国家信息表
+国家名称(英)	国家名称(中)	国家代码
+Afghanistan	阿富汗	AF
+Albania	阿尔巴尼亚	AL
+Algeria	阿尔及利亚	DZ
+Andorra	安道尔	AD
+Angola	安哥拉	AO
+Anguilla	安圭拉	AI
+Antigua and Barbuda	安提瓜和巴布达	AG
+Argentina	阿根廷	AR
+Armenia	亚美尼亚	AM
+Australia	澳大利亚	AU
+Austria	奥地利	AT
+Azerbaijan	阿塞拜疆	AZ
+Bahamas	巴哈马	BS
+Bahrain	巴林	BH
+Bangladesh	孟加拉国	BD
+Barbados	巴巴多斯	BB
+Belarus	白俄罗斯	BY
+Belgium	比利时	BE
+Belize	伯利兹	BZ
+Benin	贝宁	BJ
+Bermuda	百慕大	BM
+Bhutan	不丹	BT
+Bolivia	玻利维亚	BO
+Bosnia and Herzegovina	波斯尼亚和黑塞哥维那 (波黑)	BA
+Botswana	博茨瓦纳	BW
+Brazil	巴西	BR
+British Virgin Islands	英属维尔京群岛	VG
+Brunei	文莱	BN
+Bulgaria	保加利亚	BG
+Burkina Faso	布基纳法索	BF
+Burundi	布隆迪	BI
+Cambodia	柬埔寨	KH
+Cameroon	喀麦隆	CM
+Canada	加拿大	CA
+Cape Verde	佛得角	CV
+Cayman Islands	开曼群岛	KY
+Central African Republic	中非共和国	CF
+Chad	乍得	TD
+Chile	智利	CL
+Colombia	哥伦比亚	CO
+Comoros	科摩罗	KM
+Congo (Republic)	刚果共和国	CG
+Congo (Democratic Republic)	刚果民主共和国	CD
+Costa Rica	哥斯达黎加	CR
+Cote d´Ivoire (Ivory Coast)	象牙海岸	CI
+Croatia	克罗地亚	HR
+Cuba	古巴	CU
+Cyprus	塞浦路斯	CY
+Czech Republic	捷克共和国	CZ
+Denmark	丹麦	DK
+Djibouti	吉布提	DJ
+Dominica	多米尼克	DM
+Dominican Republic	多明尼加共和国	DO
+Ecuador	厄瓜多尔	EC
+Egypt	埃及	EG
+El Salvador	萨尔瓦多	SV
+Equatorial Guinea	赤道几内亚	GQ
+Eritrea	厄立特里亚	ER
+Estonia	爱沙尼亚	EE
+Ethiopia	埃塞俄比亚	ET
+Fiji	斐济	FJ
+Finland	芬兰	FI
+France	法国	FR
+Gabon	加蓬	GA
+Gambia	冈比亚	GM
+Georgia	格鲁吉亚	GE
+Germany	德国	DE
+Ghana	加纳	GH
+Greece	希腊	GR
+Grenada	格林纳达	GD
+Guatemala	危地马拉	GT
+Guinea	几内亚	GN
+Guinea-Bissau	几内亚比绍	GW
+Guyana	圭亚那	GY
+Haiti	海地	HT
+Honduras	洪都拉斯	HN
+Hong Kong	香港	HK
+Hungary	匈牙利	HU
+Iceland	冰岛	IS
+India	印度	IN
+Indonesia	印度尼西亚	ID
+Iran	伊朗	IR
+Iraq	伊拉克	IQ
+Ireland	爱尔兰	IE
+Israel	以色列	IL
+Italy	意大利	IT
+Jamaica	牙买加	JM
+Japan	日本	JP
+Jordan	约旦	JO
+Kazakhstan	哈萨克斯坦	KZ
+Kenya	肯尼亚	KE
+Kiribati	基里巴斯	KI
+North Korea	朝鲜	KP
+South Korea	韩国	KR
+Kuwait	科威特	KW
+Kyrgyzstan	吉尔吉斯斯坦	KG
+Laos	老挝	LA
+Latvia	拉脱维亚	LV
+Lebanon	黎巴嫩	LB
+Lesotho	莱索托	LS
+Liberia	利比里亚	LR
+Libya	利比亚	LY
+Liechtenstein	列支敦士登	LI
+Lithuania	立陶宛	LT
+Luxembourg	卢森堡	LU
+Macau	澳门	MO
+Macedonia	马其顿	MK
+Madagascar	马达加斯加	MG
+Malawi	马拉维	MW
+Malaysia	马来西亚	MY
+Maldives	马尔代夫	MV
+Mali	马里	ML
+Malta	马耳他	MT
+Marshall Islands	马绍尔群岛	MH
+Mauritania	毛里塔尼亚	MR
+Mauritius	毛里求斯	MU
+Mexico	墨西哥	MX
+Micronesia	密克罗尼西亚	FM
+Moldova	摩尔多瓦	MD
+Monaco	摩纳哥	MC
+Mongolia	蒙古	MN
+Montenegro	黑山	ME
+Morocco	摩洛哥	MA
+Mozambique	莫桑比克	MZ
+Myanmar (Burma)	缅甸	MM
+Namibia	纳米比亚	NA
+Nauru	瑙鲁	NR
+Nepal	尼泊尔	NP
+Netherlands	荷兰	NL
+New Zealand	新西兰	NZ
+Nicaragua	尼加拉瓜	NI
+Niger	尼日尔	NE
+Nigeria	尼日利亚	NG
+Norway	挪威	NO
+Oman	阿曼	OM
+Pakistan	巴基斯坦	PK
+Palau	帕劳	PW
+Panama	巴拿马	PA
+Papua New Guinea	巴布亚新几内亚	PG
+Paraguay	巴拉圭	PY
+Peru	秘鲁	PE
+Philippines	菲律宾	PH
+Poland	波兰	PL
+Portugal	葡萄牙	PT
+Qatar	卡塔尔	QA
+Romania	罗马尼亚	RO
+Russia	俄国	RU
+Rwanda	卢旺达	RW
+Saint Kitts and Nevis	圣基茨和尼维斯	KN
+Saint Lucia	圣卢西亚	LC
+Saint Vincent and the Grenadines	圣文森特和格林纳丁斯	VC
+Samoa	萨摩亚	WS
+San Marino	圣马力诺	SM
+Sao Tome and Principe	圣多美和普林西比	ST
+Saudi Arabia	沙特阿拉伯	SA
+Senegal	塞内加尔	SN
+Serbia	塞尔维亚	RS
+Seychelles	塞舌尔	SC
+Sierra Leone	塞拉利昂	SL
+Singapore	新加坡	SG
+Slovakia	斯洛伐克	SK
+Slovenia	斯洛文尼亚	SI
+Solomon Islands	所罗门群岛	SB
+Somalia	索马里	SO
+South Africa	南非	ZA
+Spain	西班牙	ES
+Sri Lanka	斯里兰卡	LK
+Sudan	苏丹	SD
+Suriname	苏里南	SR
+Swaziland	斯威士兰	SZ
+Sweden	瑞典	SE
+Switzerland	瑞士	CH
+Syria	叙利亚	SY
+Taiwan	台湾	TW
+Tajikistan	塔吉克斯坦	TJ
+Tanzania	坦桑尼亚	TZ
+Thailand	泰国	TH
+Timor-Leste (East Timor)	东帝汶	TL
+Togo	多哥	TG
+Tonga	汤加	TO
+Trinidad and Tobago	特里尼达和多巴哥	TT
+Tunisia	突尼斯	TN
+Turkey	土耳其	TR
+Turkmenistan	土库曼斯坦	TM
+Tuvalu	图瓦卢	TV
+U.S. Virgin Islands	美属维尔京群岛	VI
+Uganda	乌干达	UG
+Ukraine	乌克兰	UA
+United Arab Emirates	阿拉伯联合酋长国	AE
+United Kingdom	英国	GB
+United States	美国	US
+Uruguay	乌拉圭	UY
+Uzbekistan	乌兹别克斯坦	UZ
+Vanuatu	瓦努阿图	VU
+Vatican City	梵蒂冈城	VA
+Venezuela	委内瑞拉	VE
+Vietnam	越南	VN
+Yemen	也门	YE
+Zambia	赞比亚	ZM
+Zimbabwe	津巴布韦	ZW
+Kosovo	科索沃	XK
+South Sudan	南苏丹	SS
+China	中国	CN
+Palestine	巴勒斯坦	PS
+Curacao	库拉索	CW
+Dominican Republic	多明尼加共和国	DO
+Dominican Republic	多明尼加共和国	DO
+Gibraltar	英属直布罗陀	GI
+New Caledonia	新喀里多尼亚	NC
+Cook Islands	库克群岛	CK
+Reunion	留尼旺	RE
+Guernsey	根西岛	GG
+Guadeloupe	瓜德罗普	GP
+Martinique	马提尼克	MQ
+French Polynesia	法属波利尼西亚	PF
+Faroe Islands	法罗群岛	FO
+Greenland	格陵兰岛	GL
+Jersey	泽西岛	JE
+Aruba	阿鲁巴	AW
+Puerto Rico	波多黎各	PR
+Isle of Man	曼岛	IM
+Guam	关岛	GU
+Sint Maarten	荷属圣马丁	SX
+Turks and Caicos	特克斯和凯科斯群岛	TC
+Åland Islands	奥兰群岛	AX
+Caribbean Netherlands	荷属加勒比	BQ
+British Indian Ocean Territory	英属印度洋领地	IO
+Christmas as Island	圣诞岛	CX
+Cocos (Keeling) Islands	科科斯 (基林) 群岛	CC
+Falkland Islands (Islas Malvinas)	福克兰群岛 (马尔维纳斯群岛)	FK
+Mayotte	马约特	YT
+Niue	纽埃	NU
+Norfolk Island	诺福克岛	NF
+Northern Mariana Islands	北马里亚纳群岛	MP
+Pitcairn Islands	皮特凯恩群岛	PN
+Saint Helena, Ascension and Tristan da Cunha	圣赫勒拿、阿森松岛和特里斯坦-达库尼亚	SH
+Collectivity of Saint Martin	法属圣马丁	MF
+Saint Pierre and Miquelon	圣皮埃尔和密克隆	PM
+Tokelau	托克劳	TK
+Wallis and Futuna	瓦利斯和富图纳	WF
+American Samoa	美属萨摩亚	AS
+撤销提币
+可以撤销普通提币，但不支持撤销闪电网络上的提币。
+限速：6次/s
+限速规则：User ID
+权限：交易
+HTTP请求
+POST /api/v5/asset/cancel-withdrawal
+请求示例
+import okx.Funding as Funding
+# API 初始化apikey = "YOUR_API_KEY"secretkey = "YOUR_SECRET_KEY"passphrase = "YOUR_PASSPHRASE"
+flag = "0"  # 实盘: 0, 模拟盘: 1fundingAPI = Funding.FundingAPI(apikey, secretkey, passphrase, False, flag)
+# 撤销提币result = fundingAPI.cancel_withdrawal(
+    wdId="123456")print(result)
+请求参数
+参数名	类型	是否必须	描述
+wdId	String	是	提币申请ID
+返回结果
+{
+  "code": "0",
+  "msg": "",
+  "data": [
+    {
+      "wdId": "1123456"   
+    }
+  ]}
+返回参数
+参数名	类型	描述
+wdId	String	提币申请ID
+ 接口返回code等于0不能严格认为提币已经被撤销，只表示您的请求被系统服务器所接受，实际结果以获取提币记录中的状态为准。
+获取提币记录
+根据币种，提币状态，时间范围获取提币记录，按照时间倒序排列，默认返回100条数据。
+支持Websocket订阅，参考 提币信息频道。
+限速：6 次/s
+限速规则：User ID
+权限：读取
+HTTP 请求
+GET /api/v5/asset/withdrawal-history
+请求示例
+请求参数
+参数名	类型	是否必须	描述
+ccy	String	否	币种名称，如 BTC
+wdId	String	否	提币申请ID
+clientId	String	否	客户自定义ID
+字母（区分大小写）与数字的组合，可以是纯字母、纯数字且长度要在1-32位之间。
+txId	String	否	区块转账哈希记录
+type	String	否	提币方式
+3：内部转账
+4：链上提币
+state	String	否	提币状态
+·  阶段1：等待提币
+19：热钱包余额不足
+17：钱包地址正等待国际转账规则认证
+10：等待划转
+0：等待提币
+4/5/6/8/9/12：等待客服审核
+7：审核通过
+>0, 17, 19 可撤销，其他状态不可撤销
+·  阶段2：提币处理中（适用于链上提币，内部转账无此阶段）
+1：正在将您的交易广播到链上
+15：交易待确认
+16：根据当地法律法规，您的提币最多可能需要 24 小时才能到账
+-3：撤销中
+·  最终阶段
+-2：已撤销
+-1：失败
+2：提币成功
+after	String	否	查询在此之前的内容，值为时间戳，Unix 时间戳为毫秒数格式，如 1654041600000
+before	String	否	查询在此之后的内容，值为时间戳，Unix 时间戳为毫秒数格式，如 1656633600000
+limit	string	否	返回的结果集数量，默认为100，最大为100，不填默认返回100条
+返回结果
+{
+  "code": "0",
+  "msg": "",
+  "data": [
+    {
+      "note": "",
+      "chain": "ETH-Ethereum",
+      "fee": "0.007",
+      "feeCcy": "ETH",
+      "ccy": "ETH",
+      "clientId": "",
+      "toAddrType": "1",
+      "amt": "0.029809",
+      "txId": "0x35c******b360a174d",
+      "from": "156****359",
+      "areaCodeFrom": "86",
+      "to": "0xa30d1fab********7CF18C7B6C579",
+      "areaCodeTo": "",
+      "state": "2",
+      "ts": "1655251200000",
+      "nonTradableAsset": false,
+      "wdId": "15447421"
+    }
+  ]}
+返回参数
+参数名	类型	描述
+ccy	String	币种
+chain	String	币种链信息
+有的币种下有多个链，必须要做区分，如USDT下有USDT-ERC20，USDT-TRC20多个链
+nonTradableAsset	Boolean	是否为不可交易资产
+true：不可交易资产，false：可交易资产
+amt	String	数量
+ts	String	提币申请时间，Unix 时间戳的毫秒数格式，如 1655251200000
+from	String	提币账户
+可以是邮箱/手机号/子账户名
+areaCodeFrom	String	如果from为手机号，该字段为该手机号的区号
+to	String	收币地址
+areaCodeTo	String	如果to为手机号，该字段为该手机号的区号
+toAddrType	String	地址类型
+1: 钱包地址、邮箱、手机号、登录账户名
+2: UID
+tag	String	部分币种提币需要标签，若不需要则不返回此字段
+pmtId	String	部分币种提币需要此字段（payment_id），若不需要则不返回此字段
+memo	String	部分币种提币需要此字段，若不需要则不返回此字段
+addrEx	Object	提币地址备注，部分币种提币需要，若不需要则不返回此字段。如币种TONCOIN的提币地址备注标签名为comment,则该字段返回：{'comment':'123456'}
+txId	String	提币哈希记录
+内部转账该字段返回""
+fee	String	提币手续费数量
+feeCcy	String	提币手续费币种，如 USDT
+state	String	提币状态
+wdId	String	提币申请ID
+clientId	String	客户自定义ID
+note	String	备注信息
+获取充值/提现的详细状态
+获取充值与提现的详细状态信息与预估完成时间。
+限速：1次/2s
+限速规则：User ID
+权限：读取
+HTTP请求
+GET /api/v5/asset/deposit-withdraw-status
+请求示例
+请求参数
+参数	类型	是否必须	描述
+wdId	String	可选	提币申请ID，用于查询资金提现
+wdId与txId必传其一也仅可传其一
+txId	String	可选	区块转账哈希记录ID，用于查询资金充值
+wdId与txId必传其一也仅可传其一
+ccy	String	可选	币种，如USDT
+查询充值时必填，需要与txId一并提供
+to	String	可选	资金充值到账账户地址
+查询充值时必填，需要与txId一并提供
+chain	String	可选	币种链信息，如 USDT-ERC20
+查询充值时必填，需要与txId一并提供
+返回结果
+{
+    "code":"0",
+    "data":[
+        {
+            "wdId": "200045249",
+            "txId": "16f3638329xxxxxx42d988f97", 
+            "state": "Pending withdrawal: Wallet is under maintenance, please wait.",
+            "estCompleteTime": "01/09/2023, 8:10:48 PM"
+        }
+    ],
+    "msg": ""}
+返回参数
+参数名	类型	描述
+estCompleteTime	String	预估完成时间
+时区为 UTC+8；格式为 MM/dd/yyyy, h:mm:ss AM/PM
+estCompleteTime仅为预估完成时间，仅供参考
+state	String	充值/提现的现处于的详细阶段提示
+冒号前面代表阶段，后面代表状态
+txId	String	区块转账哈希记录
+提币如果txId已经生成，则返回，否则返回""
+wdId	String	提币申请ID
+如查询的是充值，该字段返回""
+ 阶段参考
+充值
+阶段一：监测链上交易
+阶段二：推送充值数据到入账环节
+阶段三：进行入账
+终态：充值已完成
+提现
+阶段一：等待提现
+阶段二：提现中
+终态：提现已完成 / 撤销已完成
+获取交易所列表（公共）
+公共接口无须鉴权
+限速：6次/s
+限速规则：IP
+HTTP请求
+GET /api/v5/asset/exchange-list
+请求示例
+
+请求参数
+无
+返回结果
+{
+  "code": "0",
+  "msg": "",
+  "data": [
+    {
+        "exchId": "did:ethr:0xfeb4f99829a9acdf52979abee87e83addf22a7e1",
+        "exchName": "1xbet"
+    }
+  ]}
+返回参数
+参数名	类型	描述
+exchName	String	交易所名称，如 1xbet
+exchId	String	交易所 ID，如 did:ethr:0xfeb4f99829a9acdf52979abee87e83addf22a7e1
+申请月结单 (近一年)
+申请最近一年的月结单。
+限速：20 次/月
+限速规则：User ID
+权限：读取
+HTTP Request
+POST /api/v5/asset/monthly-statement
+请求示例
+请求参数
+参数	类型	是否必须	描述
+month	String	否	月份,默认上一个月。有效值是Jan, Feb, Mar, Apr,May, Jun, Jul,Aug, Sep,Oct,Nov,Dec
+返回结果
+{
+    "code": "0",
+    "data": [
+        {
+            "ts": "1646892328000"
+        }
+    ],
+    "msg": ""}
+返回参数
+参数名	类型	描述
+ts	String	下载链接生成时间，Unix时间戳的毫秒数格式 ，如, 1597026383085
+获取月结单 (近一年)
+获取近一年的月结单
+限速：10 次/2s
+限速规则：User ID
+权限：读取
+HTTP Request
+GET /api/v5/asset/monthly-statement
+请求示例
+请求参数
+参数	类型	是否必须	描述
+month	String	是	月份, 有效值是Jan, Feb, Mar, Apr,May, Jun, Jul,Aug, Sep, Oct, Nov, Dec
+返回结果
+{
+    "code": "0",
+    "data": [
+        {
+            "fileHref": "http://xxx",
+            "state": "finished",
+            "ts": 1646892328000
+        }
+    ],
+    "msg": ""}
+返回参数
+参数名	类型	描述
+fileHref	String	文件链接
+ts	Int	下载链接生成时间，Unix时间戳的毫秒数格式 ，如 1597026383085
+state	String	下载链接状态
+finished：已生成
+ongoing：进行中
+获取闪兑币种列表
+限速：6次/s
+限速规则：User ID
+权限：读取
+HTTP 请求
+GET /api/v5/asset/convert/currencies
+请求示例
+请求参数
+无
+返回结果
+{
+    "code": "0",
+    "data": [
+        {
+            "min": "",  // 已废弃
+            "max": "",  // 已废弃
+            "ccy": "BTC"
+        },
+        {
+            "min": "",
+            "max": "",
+            "ccy": "ETH"
+        }
+    ],
+    "msg": ""}
+返回参数
+参数名	类型	描述
+ccy	String	币种名称，如 BTC
+min	String	(已废弃)
+max	String	(已废弃)
+获取闪兑币对信息
+限速：6次/s
+限速规则：User ID
+权限：读取
+HTTP 请求
+GET /api/v5/asset/convert/currency-pair
+请求示例
+请求参数
+参数	类型	是否必须	描述
+fromCcy	String	是	消耗币种，如 USDT
+toCcy	String	是	获取币种，如 BTC
+convertMode	String	否	0：标准闪兑（默认）
+1：VIP大额闪兑
+返回结果
+{
+    "code": "0",
+    "data": [
+        {
+            "baseCcy": "BTC",
+            "baseCcyMax": "0.5",
+            "baseCcyMin": "0.0001",
+            "instId": "BTC-USDT",
+            "quoteCcy": "USDT",
+            "quoteCcyMax": "10000",
+            "quoteCcyMin": "1"
+        }
+    ],
+    "msg": ""}
+返回参数
+参数名	类型	描述
+instId	String	币对，如 BTC-USDT
+baseCcy	String	交易货币币种，如 BTC-USDT中的BTC
+baseCcyMax	String	交易货币支持闪兑的最大值
+baseCcyMin	String	交易货币支持闪兑的最小值
+quoteCcy	String	计价货币币种，如 BTC-USDT中的USDT
+quoteCcyMax	String	计价货币支持闪兑的最大值
+quoteCcyMin	String	计价货币支持闪兑的最小值
+闪兑预估询价
+限速：10次/s
+限速规则：User ID
+限速：1次/5s
+限速规则：Instrument ID
+权限：交易
+HTTP请求
+POST /api/v5/asset/convert/estimate-quote
+请求示例
+请求参数
+参数名	类型	是否必须	描述
+baseCcy	String	是	交易货币币种，如 BTC-USDT中的BTC
+quoteCcy	String	是	计价货币币种，如 BTC-USDT中的USDT
+side	String	是	交易方向
+买：buy 卖：sell
+描述的是对于baseCcy的交易方向
+rfqSz	String	是	询价数量
+rfqSzCcy	String	是	询价币种
+clQReqId	String	否	客户端自定义的订单标识
+字母（区分大小写）与数字的组合，可以是纯字母、纯数字且长度要在1-32位之间。
+tag	String	否	订单标签
+适用于broker用户
+convertMode	String	否	0：标准闪兑（默认）
+1：VIP大额闪兑
+返回结果
+{
+    "code": "0",
+    "data": [
+        {
+            "baseCcy": "ETH",
+            "baseSz": "0.01023052",
+            "clQReqId": "",
+            "cnvtPx": "2932.40104429",
+            "origRfqSz": "30",
+            "quoteCcy": "USDT",
+            "quoteId": "quoterETH-USDT16461885104612381",
+            "quoteSz": "30",
+            "quoteTime": "1646188510461",
+            "rfqSz": "30",
+            "rfqSzCcy": "USDT",
+            "side": "buy",
+            "ttlMs": "10000"
+        }
+    ],
+    "msg": ""}
+返回参数
+参数名	类型	描述
+quoteTime	String	生成报价时间，Unix时间戳的毫秒数格式
+ttlMs	String	报价有效期，单位为毫秒
+clQReqId	String	客户端自定义的订单标识
+quoteId	String	报价ID
+baseCcy	String	交易货币币种，如 BTC-USDT 中BTC
+quoteCcy	String	计价货币币种，如 BTC-USDT 中USDT
+side	String	交易方向
+买：buy 卖：sell
+origRfqSz	String	原始报价的数量
+rfqSz	String	实际报价的数量
+rfqSzCcy	String	报价的币种
+cnvtPx	String	闪兑价格，单位为计价币
+baseSz	String	闪兑交易币数量
+quoteSz	String	闪兑计价币数量
+闪兑交易
+闪兑交易前需要先 询价。
+ 闪兑只能使用交易账户中的资产
+限速：10次/s
+限速规则：User ID
+权限：交易
+同一方向(buy/sell) 1次/5s 交易限制
+HTTP请求
+POST /api/v5/asset/convert/trade
+请求示例
+请求参数
+参数名	类型	是否必须	描述
+quoteId	String	是	报价ID
+baseCcy	String	是	交易货币币种，如 BTC-USDT中的BTC
+quoteCcy	String	是	计价货币币种，如 BTC-USDT中的USDT
+side	String	是	交易方向
+buy：买
+sell：卖
+描述的是对于baseCcy的交易方向
+sz	String	是	用户报价数量
+报价数量应不大于预估询价中的询价数量
+szCcy	String	是	用户报价币种
+clTReqId	String	否	用户自定义的订单标识
+字母（区分大小写）与数字的组合，可以是纯字母、纯数字且长度要在1-32位之间。
+tag	String	否	订单标签
+适用于broker用户
+convertMode	String	否	0：标准闪兑（默认）
+1：VIP大额闪兑
+返回结果
+{
+    "code": "0",
+    "data": [
+        {
+            "baseCcy": "ETH",
+            "clTReqId": "",
+            "fillBaseSz": "0.01023052",
+            "fillPx": "2932.40104429",
+            "fillQuoteSz": "30",
+            "instId": "ETH-USDT",
+            "quoteCcy": "USDT",
+            "quoteId": "quoterETH-USDT16461885104612381",
+            "side": "buy",
+            "state": "fullyFilled",
+            "tradeId": "trader16461885203381437",
+            "ts": "1646188520338"
+        }
+    ],
+    "msg": ""}
+返回参数
+参数名	类型	描述
+tradeId	String	成交ID
+quoteId	String	报价ID
+clTReqId	String	用户自定义的订单标识
+state	String	状态
+fullyFilled：交易成功
+rejected：交易失败
+instId	String	币对，如 BTC-USDT
+baseCcy	String	交易货币币种，如 BTC-USDT中BTC
+quoteCcy	String	计价货币币种，如 BTC-USDT中USDT
+side	String	交易方向
+买：buy 卖：sell
+fillPx	String	成交价格，单位为计价币
+fillBaseSz	String	成交的交易币数量
+fillQuoteSz	String	成交的计价币数量
+ts	String	闪兑交易时间，值为时间戳，Unix时间戳为毫秒数格式，如 1597026383085
+获取闪兑交易历史
+限速：6次/s
+限速规则：User ID
+权限：读取
+HTTP 请求
+GET /api/v5/asset/convert/history
+请求示例
+请求参数
+参数	类型	是否必须	描述
+clTReqId	String	否	用户自定义的订单标识
+字母（区分大小写）与数字的组合，可以是纯字母、纯数字且长度要在1-32位之间。
+after	String	否	查询在此之前的内容，值为时间戳，Unix时间戳为毫秒数格式，如 1597026383085
+before	String	否	查询在此之后的内容，值为时间戳，Unix时间戳为毫秒数格式，如 1597026383085
+limit	String	否	返回的结果集数量，默认为100，最大为100
+tag	String	否	订单标签
+适用于broker用户
+如果闪兑交易带上了tag,查询时必须也带上此参数
+返回结果
+{
+    "code": "0",
+    "data": [
+        {
+            "clTReqId": "",
+            "instId": "ETH-USDT",
+            "side": "buy",
+            "fillPx": "2932.401044",
+            "baseCcy": "ETH",
+            "quoteCcy": "USDT",
+            "fillBaseSz": "0.01023052",
+            "state": "fullyFilled",
+            "tradeId": "trader16461885203381437",
+            "fillQuoteSz": "30",
+            "ts": "1646188520000"
+        }
+    ],
+    "msg": ""}
+返回参数
+参数名	类型	描述
+tradeId	String	成交ID
+clTReqId	String	用户自定义的订单标识
+state	String	fullyFilled：交易成功
+rejected：交易失败
+instId	String	币对，如 BTC-USDT
+baseCcy	String	交易货币币种，如 BTC-USDT中的BTC
+quoteCcy	String	计价货币币种，如 BTC-USDT中的USDT
+side	String	交易方向
+买：buy 卖：sell
+fillPx	String	成交价格，单位为计价币
+fillBaseSz	String	成交的交易币数量
+fillQuoteSz	String	成交的计价币数量
+ts	String	闪兑交易时间，值为时间戳，Unix时间戳为毫秒数格式，如 1597026383085
+获取买卖交易币种
+限速：6次/s
+限速规则：User ID
+权限：读取
+HTTP 请求
+GET /api/v5/fiat/buy-sell/currencies
+请求示例
+返回结果
+{
+    "code": "0",
+    "data": [
+        {
+           "fiatCcyList":[
+                {
+                    "ccy": "USD"
+                },
+                {
+                    "ccy": "EUR"
+                },
+                ...
+            ],
+            "cryptoCcyList":[
+                {
+                    "ccy": "BTC"
+                },
+                ...
+            ],
+        }
+    ],
+    "msg": ""}
+返回参数
+参数名	类型	描述
+fiatCcyList	Array of objects	法币列表
+>ccy	String	币种，如 BTC
+cryptoCcyList	Array of objects	加密货币列表
+>ccy	String	币种，如 USD
+ 此功能目前仅对巴哈马机构用户开放。
+获取买卖交易币对
+限速：6次/s
+限速规则：User ID
+权限：读取
+HTTP 请求
+GET /api/v5/fiat/buy-sell/currency-pair
+请求示例
+请求参数
+参数名	类型	是否必须	描述
+fromCcy	String	是	卖出币种，如 USD
+toCcy	String	是	买入币种，如 BTC
+返回结果
+{
+    "code": "0",
+    "data": [
+        {
+            "side": "buy",
+            "fromCcy": "USD",
+            "toCcy": "BTC",
+            "singleTradeMax": "1",
+            "singleTradeMin": "0.01",
+            "fixedPxRemainingDailyQuota": "", 
+            "fixedPxDailyLimit": "", 
+            "paymentMethods":["balance"]
+        }
+    ],
+    "msg": ""}
+{
+    "code": "0",
+    "data": [
+        {
+            "side": "sell",
+            "fromCcy": "BTC",
+            "toCcy": "USD",
+            "singleTradeMax": "1",
+            "singleTradeMin": "0.01",
+            "fixedPxRemainingDailyQuota": "", 
+            "fixedPxDailyLimit": "", 
+            "paymentMethods":["balance"]
+        }
+    ],
+    "msg": ""}
+返回参数
+参数名	类型	描述
+side	String	交易方向
+buy: 使用法币购买加密货币/法币
+sell: 将加密货币出售为加密货币/法币
+未来可能同时支持双向交易，以逗号分隔，如 buy,sell
+fromCcy	String	卖出币种，如 USD
+toCcy	String	买入币种，如 BTC
+singleTradeMax	String	单笔交易最大数量，单位为 fromCcy
+singleTradeMin	String	单笔交易最小数量，单位为 fromCcy
+fixedPxDailyLimit	String	固定价格每日限额
+仅适用于法币间交易，否则返回空字符串
+当side = buy时，单位为 fromCcy
+当side = sell时，单位为 toCcy
+fixedPxRemainingDailyQuota	String	固定价格剩余每日限额
+仅适用于法币间交易，否则返回空字符串
+当side = buy时，单位为 fromCcy
+当side = sell时，单位为 toCcy
+paymentMethods	Array of strings	支持的支付方式
+balance
+例如：["balance"]
+ 此功能目前仅对巴哈马机构用户开放。
+获取买卖交易报价
+限速：10次/s
+限速规则：User ID
+限速：1次/5s
+限速规则：Instrument ID
+权限：读取
+HTTP 请求
+POST /api/v5/fiat/buy-sell/quote
+请求示例
+请求参数
+参数名	类型	是否必须	描述
+side	String	是	交易方向
+buy: 法币买入加密货币
+sell: 加密货币卖出法币
+fromCcy	String	是	卖出币种
+toCcy	String	是	买入币种
+rfqAmt	String	是	询价数量
+rfqCcy	String	是	询价币种
+返回结果
+{
+    "code": "0",
+    "data": [
+        {
+            "quoteId": "quoterBTC-USD16461885104612381",
+            "fromCcy": "USD",
+            "toCcy": "BTC",
+            "rfqAmt": "30",
+            "rfqCcy": "USD",
+            "quotePx": "2932.40104429",
+            "quoteCcy": "USD",
+            "quoteFromAmt": "30",
+            "quoteToAmt": "30",
+            "quoteTime": "1646188510461",
+            "ttlMs": "10000"
+        }
+    ],
+    "msg": ""}
+返回参数
+参数名	类型	描述
+quoteId	String	报价ID
+side	String	交易方向
+buy: 使用法币购买加密货币/法币
+sell: 将加密货币出售为加密货币/法币
+fromCcy	String	卖出币种，如 USD
+toCcy	String	买入币种，如 BTC
+rfqAmt	String	询价数量
+rfqCcy	String	询价币种
+quotePx	String	报价价格
+quoteCcy	String	报价价格单位
+如 USD
+quoteFromAmt	String	报价数量，单位为 fromCcy
+quoteToAmt	String	报价数量，单位为 toCcy
+quoteTime	String	报价生成时间，Unix时间戳的毫秒数格式，如 1597026383085
+ttlMs	String	报价有效期，单位为毫秒
+如 10000 表示报价仅10秒内有效
+ 此功能目前仅对巴哈马机构用户开放。
+买卖交易
+限速：1次/5s
+限速规则：User ID
+权限：交易
+HTTP 请求
+POST /api/v5/fiat/buy-sell/trade
+请求示例
+请求参数
+参数名	类型	是否必须	描述
+quoteId	String	是	报价ID
+从获取买卖交易报价API获取
+side	String	是	交易方向
+buy: 使用法币购买加密货币/法币
+sell: 将加密货币出售为加密货币/法币
+必须与报价请求一致
+fromCcy	String	是	卖出币种
+必须与报价请求一致
+toCcy	String	是	买入币种
+必须与报价请求一致
+rfqAmt	String	是	询价数量
+必须与报价请求一致
+rfqCcy	String	是	询价币种
+必须与报价请求一致
+paymentMethod	String	是	支付方式
+balance
+clOrdId	String	是	用户自定义的订单标识
+字母（区分大小写）与数字的组合，可以是纯字母、纯数字且长度要在1-32位之间
+返回结果
+{
+    "code": "0",
+    "data": [
+        {
+            "ordId": "1234",
+            "clOrdId": "",
+            "quoteId": "quoterBTC-USD16461885104612381",
+            "side":"buy",
+            "fromCcy": "USD",
+            "toCcy": "BTC",
+            "rfqAmt": "30",
+            "rfqCcy": "USD",
+            "fillPx": "2932.40104429",
+            "fillQuoteCcy": "USD",
+            "fillFromAmt": "30",
+            "fillToAmt": "0.01",
+            "cTime": "1646188510461"
+        }
+    ],
+    "msg": ""}
+返回参数
+参数名	类型	描述
+ordId	String	订单ID
+clOrdId	String	用户自定义的订单标识
+quoteId	String	报价ID
+state	String	交易状态
+processing：处理中
+completed：已完成
+failed：失败
+side	String	交易方向
+buy: 使用法币购买加密货币/法币
+sell: 将加密货币出售为加密货币/法币
+fromCcy	String	卖出币种
+toCcy	String	买入币种
+rfqAmt	String	询价数量
+rfqCcy	String	询价币种
+fillPx	String	成交价格，单位为报价币种
+fillQuoteCcy	String	成交价格报价币种
+如 USD
+fillFromAmt	String	卖出数量，单位为 fromCcy
+fillToAmt	String	买入数量，单位为 toCcy
+cTime	String	请求时间，Unix时间戳的毫秒数格式，如 1597026383085
+ 此功能目前仅对巴哈马机构用户开放。
+获取买卖交易历史
+限速：6次/s
+限速规则：User ID
+权限：读取
+HTTP 请求
+GET /api/v5/fiat/buy-sell/history
+请求示例
+请求参数
+参数名	类型	是否必须	描述
+ordId	String	否	订单ID
+clOrdId	String	否	用户自定义的订单标识
+字母（区分大小写）与数字的组合，可以是纯字母、纯数字且长度要在1-32位之间
+state	String	否	交易状态
+processing：处理中
+completed：已完成
+failed：失败
+begin	String	否	开始时间，Unix时间戳的毫秒数格式，如 1597026383085
+end	String	否	结束时间，Unix时间戳的毫秒数格式，如 1597026383085
+limit	String	否	返回的结果集数量，默认为100，最大为100
+返回结果
+{
+    "code": "0",
+    "data": [
+        {
+            "ordId": "1234",
+            "clOrdId": "",
+            "quoteId": "quoterBTC-USD16461885104612381",
+            "state":"completed",
+            "side":"buy",
+            "fromCcy": "USD",
+            "toCcy": "BTC",
+            "rfqAmt": "30",
+            "rfqCcy": "USD",
+            "fillPx": "2932.40104429",
+            "fillQuoteCcy": "USD",
+            "fillFromAmt": "30",
+            "fillToAmt": "0.01",
+            "cTime": "1646188510461",
+            "uTime": "1646188510461"
+        }
+    ],
+    "msg": ""}
+返回参数
+参数名	类型	描述
+ordId	String	订单ID
+clOrdId	String	用户自定义的订单标识
+quoteId	String	报价ID
+state	String	交易状态
+processing：处理中
+completed：已完成
+failed：失败
+fromCcy	String	卖出币种
+toCcy	String	买入币种
+rfqAmt	String	询价数量
+rfqCcy	String	询价币种
+fillPx	String	成交价格，单位为报价币种
+fillQuoteCcy	String	成交价格报价币种
+如 USD
+fillFromAmt	String	成交数量，单位为 fromCcy
+fillToAmt	String	成交数量，单位为 toCcy
+cTime	String	请求时间，Unix时间戳的毫秒数格式，如 1597026383085
+uTime	String	更新时间，Unix时间戳的毫秒数格式，如 1597026383085
+ 此功能目前仅对巴哈马机构用户开放。

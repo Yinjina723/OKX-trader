@@ -1,0 +1,2037 @@
+金融产品
+链上赚币
+仅资金账户中的资产支持申购。了解更多
+GET / 查看项目
+限速：3次/s
+限速规则：User ID
+权限：读取
+HTTP 请求
+GET /api/v5/finance/staking-defi/offers
+请求示例
+import okx.Finance.StakingDefi as StakingDefi
+# API 初始化apikey = "YOUR_API_KEY"secretkey = "YOUR_SECRET_KEY"passphrase = "YOUR_PASSPHRASE"
+flag = "0" # 实盘:0 , 模拟盘:1StakingAPI = StakingDefi.StakingDefiAPI(apikey, secretkey, passphrase, False, flag)
+result = StakingAPI.get_offers(ccy="USDT")print(result)
+
+请求参数
+参数	类型	是否必须	描述
+productId	String	否	项目ID
+protocolType	String	否	项目类型
+defi：链上赚币
+ccy	String	否	投资币种，如 BTC
+返回结果
+{
+    "code": "0",
+    "data": [
+        {
+            "ccy": "DOT",
+            "productId": "101",
+            "protocol": "Polkadot",
+            "protocolType": "defi",
+            "term": "0",
+            "apy": "0.1767",
+            "earlyRedeem": false,
+            "state": "purchasable",
+            "investData": [
+                {
+                    "bal": "0",
+                    "ccy": "DOT",
+                    "maxAmt": "0",
+                    "minAmt": "2"
+                }
+            ],
+            "earningData": [
+                {
+                    "ccy": "DOT",
+                    "earningType": "0"
+                }
+            ],
+            "fastRedemptionDailyLimit": "",
+            "redeemPeriod": [
+                "28D",
+                "28D"
+            ]
+        }
+    ],
+    "msg": ""}
+返回参数
+参数名	类型	描述
+ccy	String	币种名称，如 BTC
+productId	String	项目ID
+protocol	String	项目名称
+protocolType	String	项目类型
+defi：链上赚币
+term	String	项目期限
+活期为0，其他则显示定期天数
+apy	String	预估年化
+如果年化为7% ，则该字段为0.07
+earlyRedeem	Boolean	项目是否支持提前赎回
+investData	Array of objects	目前用户可用来投资的目标币种信息
+> ccy	String	投资币种，如BTC
+> bal	String	可投数量
+> minAmt	String	最小申购量
+> maxAmt	String	最大可申购量
+earningData	Array of objects	收益信息
+> ccy	String	收益币种，如BTC
+> earningType	String	收益类型
+0：预估收益
+1：累计发放收益
+state	String	项目状态
+purchasable：可申购
+sold_out：售罄
+stop：暂停申购
+redeemPeriod	Array of strings	赎回期，形式为 [最小赎回时间,最大赎回时间]
+H：小时，D：天
+例 ["1H","24H"] 表示赎回期时1小时到24小时。
+["14D","14D"] 表示赎回期为14天。
+fastRedemptionDailyLimit	String	快速赎回每日最高限额
+如果不支持快速赎回，则返回""
+POST / 申购项目
+限速：2次/s
+限速规则：User ID
+权限：交易
+HTTP 请求
+POST /api/v5/finance/staking-defi/purchase
+请求示例
+import okx.Finance.StakingDefi as StakingDefi
+
+# API 初始化apikey = "YOUR_API_KEY"secretkey = "YOUR_SECRET_KEY"passphrase = "YOUR_PASSPHRASE"
+flag = "0" # 实盘:0 , 模拟盘:1StakingAPI = StakingDefi.StakingDefiAPI(apikey, secretkey, passphrase, False, flag)
+result = StakingAPI.purchase(
+            productId = "4005", 
+            investData = [{
+                "ccy":"USDT",
+                "amt":"100"
+            }]
+        )print(result)
+
+请求参数
+参数	类型	是否必须	描述
+productId	String	是	项目ID
+investData	Array of objects	是	投资信息
+> ccy	String	是	投资币种，如 BTC
+> amt	String	是	投资数量
+term	String	可选	投资期限
+定期项目必须指定投资期限
+tag	String	否	订单标签
+字母（区分大小写）与数字的组合，可以是纯字母、纯数字，且长度在1-16位之间
+返回结果
+{
+  "code": "0",
+  "msg": "",
+  "data": [
+    {
+      "ordId": "754147",
+      "tag": ""
+    }
+  ]}
+返回参数
+参数名	类型	描述
+ordId	String	订单ID
+tag	String	订单标签
+POST / 赎回项目
+限速：2次/s
+限速规则：User ID
+权限：交易
+HTTP 请求
+POST /api/v5/finance/staking-defi/redeem
+请求示例
+import okx.Finance.StakingDefi as StakingDefi
+# API 初始化apikey = "YOUR_API_KEY"secretkey = "YOUR_SECRET_KEY"passphrase = "YOUR_PASSPHRASE"
+flag = "0"  # 实盘: 0, 模拟盘: 1StakingAPI = StakingDefi.StakingDefiAPI(apikey, secretkey, passphrase, False, flag)
+
+result = StakingAPI.redeem(
+           ordId = "1234",
+           protocolType = "defi"
+        )print(result)
+
+请求参数
+参数	类型	是否必须	描述
+ordId	String	是	订单ID
+protocolType	String	是	项目类型
+defi：链上赚币
+allowEarlyRedeem	Boolean	否	是否提前赎回
+默认为false
+返回结果
+{
+  "code": "0",
+  "msg": "",
+  "data": [
+    {
+      "ordId": "754147",
+      "tag": ""
+    }
+  ]}
+返回参数
+参数名	类型	描述
+ordId	String	订单ID
+tag	String	订单标签
+POST / 撤销项目申购/赎回
+ 撤销申购后的资金返回资金账户。
+限速：2次/s
+限速规则：User ID
+权限：交易
+HTTP 请求
+POST /api/v5/finance/staking-defi/cancel
+请求示例
+import okx.Finance.StakingDefi as StakingDefi
+# API 初始化apikey = "YOUR_API_KEY"secretkey = "YOUR_SECRET_KEY"passphrase = "YOUR_PASSPHRASE"
+flag = "0"  # 实盘:0 , 模拟盘:1StakingAPI = StakingDefi.StakingDefiAPI(apikey, secretkey, passphrase, False, flag)
+result = StakingAPI.cancel(
+           ordId = "1234",
+           protocolType = "defi"
+        )print(result)
+请求参数
+参数	类型	是否必须	描述
+ordId	String	是	订单ID
+protocolType	String	是	项目类型
+defi：链上赚币
+返回结果
+{
+  "code": "0",
+  "msg": "",
+  "data": [
+    {
+      "ordId": "754147",
+      "tag": ""
+    }
+  ]}
+返回参数
+参数名	类型	描述
+ordId	String	订单ID
+tag	String	订单标签
+GET / 查看活跃订单
+限速：3次/s
+限速规则：User ID
+权限：读取
+HTTP 请求
+GET /api/v5/finance/staking-defi/orders-active
+请求示例
+import okx.Finance.StakingDefi as StakingDefi
+# API 初始化apikey = "YOUR_API_KEY"secretkey = "YOUR_SECRET_KEY"passphrase = "YOUR_PASSPHRASE"
+flag = "0"  # 实盘: 0, 模拟盘: 1StakingAPI = StakingDefi.StakingDefiAPI(apikey, secretkey, passphrase, False, flag)
+result = StakingAPI.get_activity_orders()print(result)
+请求参数
+参数	类型	是否必须	描述
+productId	String	否	项目ID
+protocolType	String	否	项目类型
+defi：链上赚币
+ccy	String	否	投资币种，如 BTC
+state	String	否	订单状态
+8: 待上车（预约中）
+13: 订单取消中
+9: 上链中
+1: 收益中
+2: 赎回中
+返回结果
+{
+    "code": "0",
+    "data": [
+        {
+            "ordId": "2413499",
+            "ccy": "DOT",
+            "productId": "101",
+            "state": "1",
+            "protocol": "Polkadot",
+            "protocolType": "defi",
+            "term": "0",
+            "apy": "0.1014",
+            "investData": [
+                {
+                    "ccy": "DOT",
+                    "amt": "2"
+                }
+            ],
+            "earningData": [
+                {
+                    "ccy": "DOT",
+                    "earningType": "0",
+                    "earnings": "0.10615025"
+                }
+            ],
+            "purchasedTime": "1729839328000",
+            "tag": "",
+            "estSettlementTime": "",
+            "cancelRedemptionDeadline": "",
+            "fastRedemptionData": []
+        },
+        {
+            "ordId": "2213257",
+            "ccy": "USDT",
+            "productId": "4005",
+            "state": "1",
+            "protocol": "On-Chain Defi",
+            "protocolType": "defi",
+            "term": "0",
+            "apy": "0.0323",
+            "investData": [
+                {
+                    "ccy": "USDT",
+                    "amt": "1"
+                }
+            ],
+            "earningData": [
+                {
+                    "ccy": "USDT",
+                    "earningType": "0",
+                    "earnings": "0.02886582"
+                },
+                {
+                    "ccy": "COMP",
+                    "earningType": "1",
+                    "earnings": "0.0000627"
+                }
+            ],
+            "purchasedTime": "1725345790000",
+            "tag": "",
+            "estSettlementTime": "",
+            "cancelRedemptionDeadline": "",
+            "fastRedemptionData": []
+        },
+        {
+            "ordId": "2210943",
+            "ccy": "USDT",
+            "productId": "4005",
+            "state": "1",
+            "protocol": "On-Chain Defi",
+            "protocolType": "defi",
+            "term": "0",
+            "apy": "0.0323",
+            "investData": [
+                {
+                    "ccy": "USDT",
+                    "amt": "1"
+                }
+            ],
+            "earningData": [
+                {
+                    "ccy": "USDT",
+                    "earningType": "0",
+                    "earnings": "0.02891823"
+                },
+                {
+                    "ccy": "COMP",
+                    "earningType": "1",
+                    "earnings": "0.0000632"
+                }
+            ],
+            "purchasedTime": "1725280801000",
+            "tag": "",
+            "estSettlementTime": "",
+            "cancelRedemptionDeadline": "",
+            "fastRedemptionData": []
+        }
+    ],
+    "msg": ""}
+返回参数
+参数名	类型	描述
+ccy	String	币种名称，如 BTC
+ordId	String	订单ID
+productId	String	项目ID
+state	String	订单状态
+8：待上车（预约中）
+13：订单取消中
+9：上链中
+1：收益中
+2：赎回中
+protocol	String	项目名称
+protocolType	String	项目类型
+defi：链上赚币
+term	String	项目期限
+活期为0，其他则显示定期天数
+apy	String	预估年化
+如果年化为7% ，则该字段为0.07
+保留到小数点后4位（截位）
+investData	Array of objects	用户投资信息
+> ccy	String	投资币种，如 BTC
+> amt	String	已投资数量
+earningData	Array of objects	收益信息
+> ccy	String	收益币种，如 BTC
+> earningType	String	收益类型
+0：预估收益
+1：实际到账收益
+> earnings	String	收益数量
+fastRedemptionData	Array of objects	快速赎回信息
+> ccy	String	快速赎回币种，如 BTC
+> redeemingAmt	String	赎回中的数量
+purchasedTime	String	用户订单创建时间，值为时间戳，Unix时间戳为毫秒数格式，如 1597026383085
+estSettlementTime	String	预估赎回到账时间
+cancelRedemptionDeadline	String	撤销赎回申请截止时间
+tag	String	订单标签
+GET / 查看历史订单
+限速：3次/s
+限速规则：User ID
+权限：读取
+HTTP 请求
+GET /api/v5/finance/staking-defi/orders-history
+请求示例
+import okx.Finance.StakingDefi as StakingDefi
+# API 初始化apikey = "YOUR_API_KEY"secretkey = "YOUR_SECRET_KEY"passphrase = "YOUR_PASSPHRASE"
+flag = "0"  # 实盘: 0, 模拟盘: 1StakingAPI = StakingDefi.StakingDefiAPI(apikey, secretkey, passphrase, False, flag)
+result = StakingAPI.get_orders_history()print(result)
+请求参数
+参数	类型	是否必须	描述
+productId	String	否	项目ID
+protocolType	String	否	项目类型
+defi：链上赚币
+ccy	String	否	投资币种，如 BTC
+after	String	否	请求此ID之前（更旧的数据）的分页内容，传的值为对应接口的ordId
+before	String	否	请求此ID之后（更新的数据）的分页内容，传的值为对应接口的ordId
+limit	String	否	返回结果的数量，默认100条，最大值为100条
+返回结果
+{
+    "code": "0",
+    "msg": "",
+    "data": [
+       {
+            "ordId": "1579252",
+            "ccy": "DOT",
+            "productId": "101",
+            "state": "3",
+            "protocol": "Polkadot",
+            "protocolType": "defi",
+            "term": "0",
+            "apy": "0.1704",
+            "investData": [
+                {
+                    "ccy": "DOT",
+                    "amt": "2"
+                }
+            ],
+            "earningData": [
+                {
+                    "ccy": "DOT",
+                    "earningType": "0",
+                    "realizedEarnings": "0"
+                }
+            ],
+            "purchasedTime": "1712908001000",
+            "redeemedTime": "1712914294000",
+            "tag": ""
+       }
+    ]}
+返回参数
+参数名	类型	描述
+ccy	String	币种名称，如 BTC
+ordId	String	订单ID
+productId	String	项目ID
+state	String	订单状态
+3: 订单已完成（包含撤销和已赎回两种状态）
+protocol	String	项目名称
+protocolType	String	项目类型
+defi：链上赚币
+term	String	项目期限
+活期为0，其他则显示定期天数
+apy	String	预估年化
+如果年化为7% ，则该字段为0.07
+保留到小数点后4位（截位）
+investData	Array of objects	用户投资信息
+> ccy	String	投资币种，如BTC
+> amt	String	已投资数量
+earningData	Array of objects	收益信息
+> ccy	String	收益币种，如BTC
+> earningType	String	收益类型
+0：预估收益
+1：实际到账收益
+> realizedEarnings	String	已赎回订单累计收益
+该字段仅在订单处于赎回状态时有效
+purchasedTime	String	用户订单创建时间，值为时间戳，Unix时间戳为毫秒数格式，如 1597026383085
+redeemedTime	String	用户订单赎回时间，值为时间戳，Unix时间戳为毫秒数格式，如 1597026383085
+tag	String	订单标签
+ETH质押
+ETH 质押，也称为以太坊质押，是参与以太坊区块链权益证明 (Proof of Stake, PoS) 共识机制的过程。
+质押 ETH 即获 1:1 BETH 并赚取每日奖励，享受更高流动性
+了解更多
+GET / 获取产品信息
+限速：3 次/s
+限速规则：User ID
+权限：读取
+HTTP 请求
+GET /api/v5/finance/staking-defi/eth/product-info
+请求示例
+import okx.Finance.EthStaking as EthStaking
+# API 初始化apikey = "YOUR_API_KEY"secretkey = "YOUR_SECRET_KEY"passphrase = "YOUR_PASSPHRASE"
+flag = "0"  # 实盘: 0, 模拟盘: 1StackingAPI = EthStaking.EthStakingAPI(apikey, secretkey, passphrase, False, flag)
+result = StackingAPI.eth_product_info()print(result)
+返回结果
+{
+    "code": "0",
+    "data": [
+      {
+        "fastRedemptionDailyLimit": "100",
+        "rate": "2.23",
+        "redemptDays": "8",
+        "minAmt": "0.001"
+      }
+    ],
+    "msg": ""}
+返回参数
+参数名	类型	描述
+fastRedemptionDailyLimit	String	快速赎回每日最高份额
+母账户和子账户共享同一个限额
+rate	String	最新 BETH 年化收益率
+redemptDays	String	BETH 赎回天数
+minAmt	String	BETH 最低申购数量
+POST / 申购
+质押ETH获取BETH
+仅资金账户中的资产支持ETH质押。
+限速：2次/s
+限速规则：User ID
+权限：交易
+HTTP 请求
+POST /api/v5/finance/staking-defi/eth/purchase
+请求示例
+import okx.Finance.EthStaking as EthStaking
+# API 初始化apikey = "YOUR_API_KEY"secretkey = "YOUR_SECRET_KEY"passphrase = "YOUR_PASSPHRASE"
+flag = "0"  # 实盘: 0, 模拟盘: 1StackingAPI = EthStaking.EthStakingAPI(apikey, secretkey, passphrase, False, flag)
+result = StackingAPI.eth_purchase(amt="1")print(result)
+请求参数
+参数	类型	是否必须	描述
+amt	String	是	投资数量
+返回结果
+{
+  "code": "0",
+  "msg": "",
+  "data": [
+  ]}
+返回参数
+code = 0代表请求已被成功处理
+POST / 赎回
+只能赎回资金账户中的 BETH 资产，交易账户中的 BETH 资产需要您先做资金划转到资金账户后赎回。
+限速：2次/s
+限速规则：User ID
+权限：交易
+HTTP 请求
+POST /api/v5/finance/staking-defi/eth/redeem
+请求示例
+import okx.Finance.EthStaking as EthStaking
+# API 初始化apikey = "YOUR_API_KEY"secretkey = "YOUR_SECRET_KEY"passphrase = "YOUR_PASSPHRASE"
+flag = "0"  # 实盘: 0, 模拟盘: 1StackingAPI = EthStaking.EthStakingAPI(apikey, secretkey, passphrase, False, flag)
+result = StackingAPI.eth_redeem(amt="1")print(result)
+请求参数
+参数	类型	是否必须	描述
+amt	String	是	赎回数量
+返回结果
+{
+  "code": "0",
+  "msg": "",
+  "data": [
+  ]}
+返回参数
+code = 0代表请求已被成功处理
+POST / 撤销赎回
+限速：2 次/s
+限速规则：User ID
+权限：交易
+HTTP 请求
+POST /api/v5/finance/staking-defi/eth/cancel-redeem
+请求示例
+请求参数
+参数	类型	是否必须	描述
+ordId	String	是	订单ID
+返回结果
+{
+    "code": "0",
+    "data": [
+        {
+            "ordId": "1234567890"
+        }
+    ],
+    "msg": ""}
+返回参数
+参数名	类型	描述
+ordId	String	订单ID
+GET / 获取余额
+该余额表示账户内 BETH 的实时总持仓，包括交易账户、资金账户以及处于赎回过程中的资产。
+限速：6 次/s
+限速规则：User ID
+权限：读取
+HTTP 请求
+GET /api/v5/finance/staking-defi/eth/balance
+请求示例
+import okx.Finance.EthStaking as EthStaking
+# API 初始化apikey = "YOUR_API_KEY"secretkey = "YOUR_SECRET_KEY"passphrase = "YOUR_PASSPHRASE"
+flag = "0"  # 实盘: 0, 模拟盘: 1StackingAPI = EthStaking.EthStakingAPI(apikey, secretkey, passphrase, False, flag)
+result = StackingAPI.eth_balance()print(result)
+请求参数
+None
+返回结果
+{
+    "code": "0",
+    "data": [
+      {
+        "amt": "0.63926191",
+        "ccy": "BETH",
+        "latestInterestAccrual": "0.00006549",
+        "totalInterestAccrual": "0.01490596",
+        "ts": "1699257600000"
+      }
+    ],
+    "msg": ""}
+返回参数
+参数名	类型	描述
+ccy	String	币种名称，如 BETH
+amt	String	币种数量
+latestInterestAccrual	String	最近收益
+totalInterestAccrual	String	历史总收益
+ts	String	快照时间，值为时间戳，Unix时间戳为毫秒数格式，如 1597026383085
+GET / 获取申购赎回记录
+限速：6 次/s
+限速规则：User ID
+权限：读取
+HTTP 请求
+GET /api/v5/finance/staking-defi/eth/purchase-redeem-history
+请求示例
+import okx.Finance.EthStaking as EthStaking
+# API 初始化apikey = "YOUR_API_KEY"secretkey = "YOUR_SECRET_KEY"passphrase = "YOUR_PASSPHRASE"
+flag = "0"  # 实盘: 0, 模拟盘: 1StackingAPI = EthStaking.EthStakingAPI(apikey, secretkey, passphrase, False, flag)
+result = StackingAPI.eth_purchase_redeem_history()print(result)
+请求参数
+参数	类型	是否必须	描述
+type	String	否	类型
+purchase：申购
+redeem：赎回
+status	String	否	状态
+pending：处理中
+success：成功处理
+failed：处理失败
+cancelled：已取消
+after	String	否	请求此requestTime之前（更旧的数据）的分页内容，值为时间戳，Unix 时间戳为毫秒数格式，如 1597026383085
+before	String	否	请求此requestTime之后（更新的数据）的分页内容，值为时间戳，Unix 时间戳为毫秒数格式，如 1597026383085
+limit	String	否	返回结果的数量，默认100条，最大值为100条
+返回结果
+{
+    "code": "0",
+    "data": [
+        {
+            "amt": "0.62666630",
+            "completedTime": "1683413171000",
+            "estCompletedTime": "",
+            "redeemingAmt": "",
+            "requestTime": "1683413171000",
+            "status": "success",
+            "type": "purchase"
+        }
+    ],
+    "msg": ""}
+返回参数
+参数名	类型	描述
+type	String	类型
+purchase：申购
+redeem：赎回
+amt	String	申购/赎回 的数量
+redeemingAmt	String	赎回中的数量
+status	String	状态
+pending：处理中
+success：成功处理
+failed：处理失败
+cancelled：已取消
+ordId	String	订单ID
+requestTime	String	发起 申购/赎回 请求的时间，值为时间戳，Unix时间戳为毫秒数格式，如 1597026383085
+completedTime	String	赎回请求处理完成的时间，值为时间戳，Unix时间戳为毫秒数格式，如 1597026383085
+estCompletedTime	String	预估完成赎回的时间，值为时间戳，Unix时间戳为毫秒数格式，如 1597026383085
+GET / 获取历史收益率(公共)
+公共接口无须鉴权
+限速：6次/s
+限速规则：IP
+HTTP 请求
+GET /api/v5/finance/staking-defi/eth/apy-history
+请求示例
+import okx.Finance.EthStaking as EthStaking
+flag = "0"  # 实盘: 0, 模拟盘: 1StackingAPI = EthStaking.EthStakingAPI(flag=flag)
+result = StackingAPI.eth_apy_history(days="7")print(result)
+请求参数
+参数	类型	是否必须	描述
+days	String	是	查询最近多少天内的数据，不超过365天
+返回结果
+{
+    "code": "0",
+    "data": [
+        {
+            "rate": "0.02690000",
+            "ts": "1734195600000"
+        },
+        {
+            "rate": "0.02840000",
+            "ts": "1734109200000"
+        }
+    ],
+    "msg": ""}
+返回参数
+参数名	类型	描述
+rate	String	年化收益率，如 0.01代表1%
+ts	String	时间，值为时间戳，Unix时间戳为毫秒数格式，如 1597026383085
+SOL质押
+通过质押 SOL 代币并将其委托给 Solana 网络上的验证者，您可以收到等值的 OKSOL 并获得每日 OKSOL 奖励。
+在 Solana 上质押 SOL，即获 1:1 OKSOL，享受更高流动性
+了解更多
+GET / 获取产品信息
+限速：3 次/s
+限速规则：User ID
+权限：读取
+HTTP 请求
+GET /api/v5/finance/staking-defi/sol/product-info
+请求示例
+
+返回结果
+{
+    "code": "0",
+    "data": {
+        "fastRedemptionAvail": "240",
+        "fastRedemptionDailyLimit": "240",
+        "rate": "5.57",
+        "redemptDays": "2",
+        "minAmt": "0.01"
+    },
+    "msg": ""}
+返回参数
+参数名	类型	描述
+fastRedemptionDailyLimit	String	快速赎回每日最高份额
+母账户和子账户共享同一个限额
+fastRedemptionAvail	String	当前剩余最大可赎回数量
+rate	String	最新 OKSOL 年化收益率
+redemptDays	String	OKSOL 赎回天数
+minAmt	String	OKSOL 最低申购数量
+POST / 申购
+质押 SOL 获取 OKSOL
+仅资金账户中的资产支持 SOL 质押。
+限速：2次/s
+限速规则：User ID
+权限：交易
+HTTP 请求
+POST /api/v5/finance/staking-defi/sol/purchase
+请求示例
+import okx.Finance.SolStaking as SolStaking
+
+# API 初始化apikey = "YOUR_API_KEY"secretkey = "YOUR_SECRET_KEY"passphrase = "YOUR_PASSPHRASE"
+flag = "0"  # 实盘: 0, 模拟盘: 1StackingAPI = SolStaking.SolStakingAPI(apikey, secretkey, passphrase, False, flag)
+result = StackingAPI.sol_purchase(amt="1")print(result)
+请求参数
+参数	类型	是否必须	描述
+amt	String	是	投资数量
+返回结果
+{
+  "code": "0",
+  "msg": "",
+  "data": [
+  ]}
+返回参数
+code = 0代表请求已被成功处理
+POST / 赎回
+只能赎回资金账户中的 OKSOL 资产，交易账户中的 OKSOL 资产需要您先做资金划转到资金账户后赎回。
+限速：2次/s
+限速规则：User ID
+权限：交易
+HTTP 请求
+POST /api/v5/finance/staking-defi/sol/redeem
+请求示例
+import okx.Finance.SolStaking as SolStaking
+
+# API 初始化apikey = "YOUR_API_KEY"secretkey = "YOUR_SECRET_KEY"passphrase = "YOUR_PASSPHRASE"
+flag = "0"  # 实盘: 0, 模拟盘: 1StackingAPI = SolStaking.SolStakingAPI(apikey, secretkey, passphrase, False, flag)
+result = StackingAPI.sol_redeem(amt="1")print(result)
+请求参数
+参数	类型	是否必须	描述
+amt	String	是	赎回数量
+返回结果
+{
+  "code": "0",
+  "msg": "",
+  "data": [
+  ]}
+返回参数
+code = 0代表请求已被成功处理
+GET / 获取余额
+该余额表示账户内 OKSOL 的实时总持仓，包括交易账户、资金账户以及处于赎回过程中的资产。
+限速：6 次/s
+限速规则：User ID
+权限：读取
+HTTP 请求
+GET /api/v5/finance/staking-defi/sol/balance
+请求示例
+import okx.Finance.SolStaking as SolStaking
+
+# API 初始化apikey = "YOUR_API_KEY"secretkey = "YOUR_SECRET_KEY"passphrase = "YOUR_PASSPHRASE"
+flag = "0"  # 实盘: 0, 模拟盘: 1StackingAPI = SolStaking.SolStakingAPI(apikey, secretkey, passphrase, False, flag)
+result = StackingAPI.sol_balance()print(result)
+请求参数
+None
+返回结果
+{
+    "code": "0",
+    "data": [
+        {
+            "amt": "0.01100012",
+            "ccy": "OKSOL",
+            "latestInterestAccrual": "0.00000012",
+            "totalInterestAccrual": "0.00000012"
+        }
+    ],
+    "msg": ""}
+返回参数
+参数名	类型	描述
+ccy	String	币种名称，如 OKSOL
+amt	String	币种数量
+latestInterestAccrual	String	最近收益
+totalInterestAccrual	String	历史总收益
+GET / 获取申购赎回记录
+限速：6 次/s
+限速规则：User ID
+权限：读取
+HTTP 请求
+GET /api/v5/finance/staking-defi/sol/purchase-redeem-history
+请求示例
+import okx.Finance.SolStaking as SolStaking
+
+# API 初始化apikey = "YOUR_API_KEY"secretkey = "YOUR_SECRET_KEY"passphrase = "YOUR_PASSPHRASE"
+flag = "0"  # 实盘: 0, 模拟盘: 1StackingAPI = SolStaking.SolStakingAPI(apikey, secretkey, passphrase, False, flag)
+result = StackingAPI.sol_purchase_redeem_history()print(result)
+请求参数
+参数	类型	是否必须	描述
+type	String	否	类型
+purchase：申购
+redeem：赎回
+status	String	否	状态
+pending：处理中
+success：成功处理
+failed：处理失败
+after	String	否	请求此requestTime之前（更旧的数据）的分页内容，值为时间戳，Unix 时间戳为毫秒数格式，如 1597026383085
+before	String	否	请求此requestTime之后（更新的数据）的分页内容，值为时间戳，Unix 时间戳为毫秒数格式，如 1597026383085
+limit	String	否	返回结果的数量，默认100条，最大值为100条
+返回结果
+{
+    "code": "0",
+    "data": [
+        {
+            "amt": "0.62666630",
+            "completedTime": "1683413171000",
+            "estCompletedTime": "",
+            "redeemingAmt": "",
+            "requestTime": "1683413171000",
+            "status": "success",
+            "type": "purchase"
+        }
+    ],
+    "msg": ""}
+返回参数
+参数名	类型	描述
+type	String	类型
+purchase：申购
+redeem：赎回
+amt	String	申购/赎回 的数量
+redeemingAmt	String	赎回中的数量
+status	String	状态
+pending：处理中
+success：成功处理
+failed：处理失败
+requestTime	String	发起 申购/赎回 请求的时间，值为时间戳，Unix时间戳为毫秒数格式，如 1597026383085
+completedTime	String	赎回请求处理完成的时间，值为时间戳，Unix时间戳为毫秒数格式，如 1597026383085
+estCompletedTime	String	预估完成赎回的时间，值为时间戳，Unix时间戳为毫秒数格式，如 1597026383085
+GET / 获取历史收益率(公共)
+公共接口无须鉴权
+限速：6次/s
+限速规则：IP
+HTTP 请求
+GET /api/v5/finance/staking-defi/sol/apy-history
+请求示例
+import okx.Finance.SolStaking as SolStaking
+flag = "0"  # 实盘: 0, 模拟盘: 1StackingAPI = SolStaking.SolStakingAPI(flag=flag)
+result = StackingAPI.sol_apy_history(days="7")print(result)
+请求参数
+参数	类型	是否必须	描述
+days	String	是	查询最近多少天内的数据，不超过365天
+返回结果
+{
+    "code": "0",
+    "data": [
+        {
+            "rate": "0.11280000",
+            "ts": "1734192000000"
+        },
+        {
+            "rate": "0.11270000",
+            "ts": "1734105600000"
+        }
+    ],
+    "msg": ""}
+返回参数
+参数名	类型	描述
+rate	String	年化收益率，如 0.01代表1%
+ts	String	时间，值为时间戳，Unix时间戳为毫秒数格式，如 1597026383085
+Stable Rewards
+OKX Stable Rewards 自动为持有合格稳定币（如 USDG）的用户每日发放奖励，启用后无需任何操作即可持续赚取收益。
+订阅时从资金账户扣款；收益及赎回默认结算至交易账户。
+GET / 获取产品信息
+获取指定稳定币的产品信息，包括支持订阅/赎回的结算币种、适用手续费率、申购/赎回金额限制、每日配额以及当前赎回可用状态。
+限速：5次/2s
+限速规则：User ID
+权限：读取
+HTTP 请求
+GET /api/v5/finance/stable-rewards/product-info
+请求示例
+请求参数
+参数名	类型	是否必须	描述
+ccy	String	是	稳定币，如 USDG
+返回结果
+{
+    "code": "0",
+    "msg": "",
+    "data": [
+        {
+            "details": [
+                {
+                    "ccy": "USDG",
+                    "settleCcy": "USDC",
+                    "subFeeRate": "0.0003",
+                    "redemptFeeRate": "0",
+                    "minSubAmt": "1",
+                    "minRedeemAmt": "0.0000001",
+                    "remainingSubQuota": "1000000",
+                    "remainingRedemptQuota": "500000",
+                    "canRedeem": true
+                },
+                {
+                    "ccy": "USDG",
+                    "settleCcy": "USDT",
+                    "subFeeRate": "0.0003",
+                    "redemptFeeRate": "",
+                    "minSubAmt": "1",
+                    "minRedeemAmt": "",
+                    "remainingSubQuota": "1000000",
+                    "remainingRedemptQuota": "",
+                    "canRedeem": false
+                }
+            ],
+            "ts": "1718035200000"
+        }
+    ]}
+返回参数
+参数名	类型	描述
+details	Array of objects	当前稳定币支持的结算币种及其订阅/赎回信息列表
+> ccy	String	可订阅的稳定币，如 USDG
+> settleCcy	String	可用于订阅 ccy 的结算币种，如 USDC、USDT
+> subFeeRate	String	订阅手续费率，如 0.01 代表 1%
+> redemptFeeRate	String	赎回手续费率，如 0.01 代表 1%
+当前 settleCcy 不支持赎回时返回 ""
+> minSubAmt	String	最小订阅数量，以 settleCcy 计价
+> minRedeemAmt	String	最小赎回数量，以 ccy 计价
+当前 settleCcy 不支持赎回时返回 ""
+> remainingSubQuota	String	每日剩余订阅额度，按母账户 ID 统计
+-1 代表无上限
+> remainingRedemptQuota	String	每日剩余赎回额度，按母账户 ID 统计
+-1 代表无上限
+当前 settleCcy 不支持赎回时返回 ""
+> canRedeem	Boolean	当前 settleCcy 是否支持赎回
+true：可赎回
+false：不可赎回
+ts	String	数据查询时间，Unix 时间戳，单位为毫秒，如 1597026383085
+POST / 询价
+在订阅或赎回前发起询价。仅资金账户中的资产可用于订阅。返回的 quoteId 须在 ttlMs 过期前通过 POST /trade 接口提交以完成交易。
+限速：2次/s
+限速规则：User ID
+权限：交易
+HTTP 请求
+POST /api/v5/finance/stable-rewards/quote
+请求示例
+请求参数
+参数名	类型	是否必须	描述
+ccy	String	是	订阅或赎回的稳定币，如 USDG
+settleCcy	String	是	结算币种，如 USDC、USDT
+action	String	是	操作类型
+subscribe：订阅
+redeem：赎回
+amt	String	是	交易数量
+subscribe 时以 settleCcy 计价
+redeem 时以 ccy 计价
+返回结果
+{
+    "code": "0",
+    "msg": "",
+    "data": [
+        {
+            "quoteId": "1234567890",
+            "quoteAmt": "998.88",
+            "quoteCcy": "USDG",
+            "exchRate": "0.99888110",
+            "feeRate": "0.0003",
+            "quoteTime": "1620282889345",
+            "ttlMs": "10000"
+        }
+    ]}
+返回参数
+参数名	类型	描述
+quoteId	String	报价 ID。须在 ttlMs 过期前通过 POST /trade 提交以完成交易
+quoteAmt	String	报价数量，以 quoteCcy 计价
+quoteCcy	String	quoteAmt 对应的币种
+subscribe 时返回 ccy（用户获得的稳定币）
+redeem 时返回 settleCcy（用户获得的结算币种）
+exchRate	String	兑换汇率，精度为 8 位小数
+subscribe 时：1 单位 settleCcy 可兑换的 ccy 数量
+redeem 时：1 单位 ccy 可兑换的 settleCcy 数量
+feeRate	String	本次报价的手续费率，如 0.0003 代表 0.03%
+quoteTime	String	报价生成时间，Unix 时间戳，单位为毫秒，如 1597026383085
+ttlMs	String	报价有效期，单位为毫秒，如 10000 代表报价 10 秒内有效
+POST / 下单
+使用 POST /quote 返回的有效 quoteId 执行订阅或赎回。
+订阅：从资金账户扣款，成功后稳定币默认入账至交易账户。
+赎回：默认从资金账户扣除稳定币，结算币种默认入账至交易账户。
+限速：2次/s
+限速规则：User ID
+权限：交易
+HTTP 请求
+POST /api/v5/finance/stable-rewards/trade
+请求示例
+请求参数
+参数名	类型	是否必须	描述
+quoteId	String	是	由 POST /quote 返回的报价 ID，须在报价未过期前提交
+返回结果
+{
+    "code": "0",
+    "msg": "",
+    "data": [
+        {
+            "quoteId": "1234567890",
+            "ordId": "987654321"
+        }
+    ]}
+返回参数
+参数名	类型	描述
+quoteId	String	报价 ID
+ordId	String	订单 ID
+GET / 获取余额
+查询 Stable Rewards 的实时余额，余额涵盖交易账户、资金账户以及正在赎回中的资产合计，同时返回累计收益与当前收益状态。
+限速：5次/2s
+限速规则：User ID
+权限：读取
+HTTP 请求
+GET /api/v5/finance/stable-rewards/balance
+请求示例
+请求参数
+参数名	类型	是否必须	描述
+ccy	String	否	稳定币，如 USDG
+不传则返回全部支持的稳定币
+返回结果
+{
+    "code": "0",
+    "msg": "",
+    "data": [
+        {
+            "details": [
+                {
+                    "ccy": "USDG",
+                    "amt": "100",
+                    "totalEarnAccrual": "0.0003",
+                    "state": "earning"
+                }
+            ],
+            "ts": "1718035200000"
+        }
+    ]}
+返回参数
+参数名	类型	描述
+details	Array of objects	按稳定币返回的实时余额明细
+> ccy	String	稳定币，如 USDG
+> amt	String	整个账户范围内的持有数量
+> totalEarnAccrual	String	持有期间的累计收益
+> state	String	收益状态
+earning：正在产生收益
+pending：未在产生收益（如自动赚币已关闭，或余额低于起息门槛）
+ts	String	数据查询时间，Unix 时间戳，单位为毫秒，如 1597026383085
+GET / 获取历史收益率
+查询指定稳定币的历史每日年化收益率。返回值为用户当前 VIP 等级对应的收益率。
+限速：6次/s
+限速规则：IP
+权限：读取
+HTTP 请求
+GET /api/v5/finance/stable-rewards/apy-history
+请求示例
+请求参数
+参数名	类型	是否必须	描述
+ccy	String	是	稳定币，如 USDG
+days	String	否	查询最近多少天的历史数据。默认 100，最大 100
+返回结果
+{
+    "code": "0",
+    "msg": "",
+    "data": [
+        {
+            "rate": "0.004",
+            "ts": "1718035200000"
+        }
+    ]}
+返回参数
+参数名	类型	描述
+rate	String	用户当前 VIP 等级对应的日度年化收益率，如 0.041 代表 4.1%
+ts	String	数据快照时间（UTC+0），Unix 时间戳，单位为毫秒，如 1597026383085
+GET / 获取订阅赎回历史
+查询订阅与赎回记录，按时间倒序返回。
+限速：5次/2s
+限速规则：User ID
+权限：读取
+HTTP 请求
+GET /api/v5/finance/stable-rewards/subscribe-redeem-history
+请求示例
+请求参数
+参数名	类型	是否必须	描述
+ccy	String	是	稳定币，如 USDG
+type	String	否	记录类型
+subscribe：订阅
+redeem：赎回
+不传则返回全部类型
+status	String	否	订单状态
+pending：处理中
+success：成功
+failed：失败
+不传则返回全部状态
+after	String	否	请求此 ordId 之前（更早时间）的分页内容
+before	String	否	请求此 ordId 之后（更新时间）的分页内容
+limit	String	否	分页返回的结果数量。默认 100，最大 100
+返回结果
+{
+    "code": "0",
+    "msg": "",
+    "data": [
+        {
+            "type": "subscribe",
+            "status": "success",
+            "ccy": "USDG",
+            "settleCcy": "USDT",
+            "ccyAmt": "998.88",
+            "settleCcyAmt": "1000",
+            "fee": "0.3",
+            "quoteId": "1234567890",
+            "ordId": "987654321",
+            "ts": "1718035200000"
+        }
+    ]}
+返回参数
+参数名	类型	描述
+type	String	记录类型
+subscribe：订阅
+redeem：赎回
+status	String	订单状态
+pending：处理中
+success：成功
+failed：失败
+ccy	String	订阅/赎回的稳定币，如 USDG
+settleCcy	String	结算币种，如 USDC、USDT
+ccyAmt	String	以 ccy 计价的数量
+settleCcyAmt	String	以 settleCcy 计价的数量
+fee	String	订阅/赎回手续费，以 settleCcy 计价
+quoteId	String	报价 ID
+ordId	String	订单 ID
+ts	String	订单创建时间，Unix 时间戳，单位为毫秒，如 1597026383085
+活期简单赚币
+活期简单赚币通过在借贷市场出借给杠杆交易用户获取收益。了解更多
+GET / 获取活期简单赚币余额
+限速：6次/s
+限速规则：User ID
+权限：读取
+HTTP请求
+GET /api/v5/finance/savings/balance
+请求示例
+import okx.Finance.Savings as Savings
+# API 初始化apikey = "YOUR_API_KEY"secretkey = "YOUR_SECRET_KEY"passphrase = "YOUR_PASSPHRASE"
+flag = "0"  # 实盘: 0, 模拟盘: 1SavingsAPI = Savings.SavingsAPI(apikey, secretkey, passphrase, False, flag)
+result = SavingsAPI.get_saving_balance(ccy="USDT")print(result)
+请求参数
+参数	类型	是否必须	描述
+ccy	String	否	币种，如 BTC
+返回结果
+{
+    "code": "0",
+    "msg":"",
+    "data": [
+        {
+            "earnings": "0.0010737388791526",
+            "redemptAmt": "",
+            "rate": "0.0100000000000000",
+            "ccy": "USDT",
+            "amt": "11.0010737453457821",
+            "loanAmt": "11.0010630707982819",
+            "pendingAmt": "0.0000106745475002"
+        }
+    ]}
+返回参数
+参数名	类型	描述
+ccy	String	币种，如 BTC
+amt	String	币种数量
+earnings	String	币种持仓收益
+rate	String	用户配置的最低年化出借利率
+loanAmt	String	已出借数量
+pendingAmt	String	未出借数量
+redemptAmt	String	（已废弃）
+POST / 活期简单赚币申购/赎回
+仅资金账户中的资产支持活期简单赚币申购。
+限速：6次/s
+限速规则：User ID
+权限：交易
+HTTP请求
+POST /api/v5/finance/savings/purchase-redempt
+请求示例
+import okx.Finance.Savings as Savings
+# API 初始化apikey = "YOUR_API_KEY"secretkey = "YOUR_SECRET_KEY"passphrase = "YOUR_PASSPHRASE"
+flag = "0"  # 实盘: 0, 模拟盘: 1SavingsAPI = Savings.SavingsAPI(apikey, secretkey, passphrase, False, flag)
+result = SavingsAPI.savings_purchase_redemption(ccy='USDT',amt="0.1",side="purchase",rate="1")print(result)
+请求参数
+参数名	类型	是否必须	描述
+ccy	String	是	币种名称，如 BTC
+amt	String	是	申购/赎回 数量
+side	String	是	操作类型
+purchase：申购 redempt：赎回
+rate	String	可选	申购年利率，如 0.1代表10%
+仅适用于申购，新申购的利率会覆盖上次申购的利率
+参数取值范围在1%到365%之间
+返回结果
+{
+    "code":"0",
+    "msg":"",
+    "data":[
+        {
+            "ccy":"BTC",
+            "amt":"1",
+            "side":"purchase",
+            "rate":"0.01"
+        }
+    ]}
+返回参数
+参数名	类型	描述
+ccy	String	币种名称
+amt	String	申购/赎回 数量
+side	String	操作类型
+rate	String	申购年利率，如 0.1代表10%
+POST / 设置活期简单赚币借贷利率
+限速：6次/s
+限速规则：User ID
+权限：交易
+HTTP请求
+POST /api/v5/finance/savings/set-lending-rate
+请求示例
+import okx.Finance.Savings as Savings
+# API 初始化apikey = "YOUR_API_KEY"secretkey = "YOUR_SECRET_KEY"passphrase = "YOUR_PASSPHRASE"
+flag = "0"  # 实盘: 0, 模拟盘: 1SavingsAPI = Savings.SavingsAPI(apikey, secretkey, passphrase, False, flag)
+result = SavingsAPI.set_lending_rate(ccy='USDT',rate="1")print(result)
+请求参数
+参数名	类型	是否必须	描述
+ccy	String	是	币种名称，如 BTC
+rate	String	是	贷出年利率
+参数取值范围在1%到365%之间
+返回结果
+{
+    "code": "0",
+    "msg": "",
+    "data": [{
+        "ccy": "BTC",
+        "rate": "0.02"
+    }]}
+返回参数
+参数名	类型	描述
+ccy	String	币种名称，如 BTC
+rate	String	贷出年利率
+GET / 获取活期简单赚币出借明细
+返回最近一个月的数据
+限速：6次/s
+限速规则：User ID
+权限：读取
+HTTP请求
+GET /api/v5/finance/savings/lending-history
+请求示例
+import okx.Finance.Savings as Savings
+# API 初始化apikey = "YOUR_API_KEY"secretkey = "YOUR_SECRET_KEY"passphrase = "YOUR_PASSPHRASE"
+flag = "0"  # 实盘: 0, 模拟盘: 1SavingsAPI = Savings.SavingsAPI(apikey, secretkey, passphrase, False, flag)
+result = SavingsAPI.get_lending_history()print(result)
+请求参数
+参数	类型	是否必须	描述
+ccy	String	否	币种，如 BTC
+after	String	否	查询在此之前的内容，值为时间戳，Unix 时间戳为毫秒数格式，如 1597026383085
+before	String	否	查询在此之后的内容，值为时间戳，Unix 时间戳为毫秒数格式，如 1597026383085
+limit	String	否	分页返回的结果集数量，最大为 100，不填默认返回 100 条
+返回结果
+{
+    "code": "0",
+    "msg": "",
+    "data": [{
+            "ccy": "BTC",
+            "amt": "0.01",
+            "earnings": "0.001",
+            "rate": "0.01",
+            "ts": "1597026383085"
+        },
+        {
+            "ccy": "ETH",
+            "amt": "0.2",
+            "earnings": "0.001",
+            "rate": "0.01",
+            "ts": "1597026383085"
+        }
+    ]}
+返回参数
+参数名	类型	描述
+ccy	String	币种，如 BTC
+amt	String	出借数量
+earnings	String	已赚取利息
+rate	String	出借年利率
+ts	String	出借时间，Unix时间戳的毫秒数格式，如 1597026383085
+GET / 获取市场借贷信息（公共）
+公共接口无须鉴权
+限速：6次/s
+限速规则：IP
+HTTP请求
+GET /api/v5/finance/savings/lending-rate-summary
+请求示例
+import okx.Finance.Savings as Savings
+flag = "0"  # 实盘: 0, 模拟盘: 1SavingsAPI = Savings.SavingsAPI(flag=flag)
+result = SavingsAPI.get_public_borrow_info()print(result)
+请求参数
+参数	类型	是否必须	描述
+ccy	String	否	币种，如 BTC
+返回结果
+{
+    "code": "0",
+    "msg": "",
+    "data": [{
+        "ccy": "BTC",
+        "avgAmt": "10000",
+        "avgAmtUsd": "10000000000",
+        "avgRate": "0.03",
+        "preRate": "0.02",
+        "estRate": "0.01"
+    }]}
+返回参数
+参数名	类型	描述
+ccy	String	币种，如 BTC
+avgAmt	String	(已弃用)
+avgAmtUsd	String	(已弃用)
+avgRate	String	过去24小时平均借入年利率
+preRate	String	上一次借入年利率
+estRate	String	下一次预估借入年利率
+GET / 获取市场借贷历史（公共）
+公共接口无须鉴权
+返回2021年12月14日后的记录
+限速：6次/s
+限速规则：IP
+HTTP请求
+GET /api/v5/finance/savings/lending-rate-history
+请求示例
+import okx.Finance.Savings as Savings
+flag = "0"  # 实盘: 0, 模拟盘: 1SavingsAPI = Savings.SavingsAPI(flag=flag)
+result = SavingsAPI.get_public_borrow_history()print(result)
+请求参数
+参数	类型	是否必须	描述
+ccy	String	否	币种，如 BTC
+after	String	否	查询在此之前的内容，值为时间戳，Unix 时间戳为毫秒数格式，如 1597026383085
+before	String	否	查询在此之后的内容，值为时间戳，Unix 时间戳为毫秒数格式，如 1597026383085
+limit	String	否	分页返回的结果集数量，最大为100，不填默认返回100条
+如果不指定ccy,会返回同一个ts下的全部数据，不受limit限制
+返回结果
+{
+    "code": "0",
+    "msg": "",
+    "data": [{
+        "ccy": "BTC",
+        "amt": "0.01",
+        "rate": "0.001",
+        "lendingRate": "0.001",
+        "ts": "1597026383085"
+    }]}
+返回参数
+参数名	类型	描述
+ccy	String	币种，如 BTC
+amt	String	（已弃用）
+rate	String	出借年利率
+lendingRate	String	年化出借利率
+ts	String	时间，Unix时间戳的毫秒数格式，如 1597026383085
+活期借币
+欧易活期借币是一款高端借贷产品，用户无需变卖数字货币即可增加现金流。了解更多
+GET / 可借币种列表
+获取可借币种列表
+限速：5次/2s
+限速规则：User ID
+权限：读取
+HTTP请求
+GET /api/v5/finance/flexible-loan/borrow-currencies
+请求示例
+from okx.Finance import FlexibleLoan
+# API 初始化apikey = "YOUR_API_KEY"secretkey = "YOUR_SECRET_KEY"passphrase = "YOUR_PASSPHRASE"
+flag = "0"  # 实盘: 0, 模拟盘: 1flexibleLoanAPI = FlexibleLoan.FlexibleLoanAPI(apikey, secretkey, passphrase, False, flag)result = flexibleLoanAPI.borrow_currencies()print(result)
+返回结果
+{
+    "code": "0",
+    "data": [
+        {
+            "borrowCcy": "USDT"
+        },
+        {
+            "borrowCcy": "USDC"
+        }
+    ],
+    "msg": ""}
+返回参数
+参数名	类型	描述
+borrowCcy	String	可借币种，如 BTC
+GET / 可抵押资产
+获取可抵押资产信息（仅支持资金账户中的资产）
+限速：5次/2s
+限速规则：User ID
+权限：读取
+HTTP请求
+GET /api/v5/finance/flexible-loan/collateral-assets
+请求示例
+from okx.Finance import FlexibleLoan
+# API 初始化apikey = "YOUR_API_KEY"secretkey = "YOUR_SECRET_KEY"passphrase = "YOUR_PASSPHRASE"
+flag = "0"  # 实盘: 0, 模拟盘: 1flexibleLoanAPI = FlexibleLoan.FlexibleLoanAPI(apikey, secretkey, passphrase, False, flag)result = flexibleLoanAPI.collateral_assets(ordId="12345")print(result)
+请求参数
+参数	类型	是否必须	描述
+ccy	String	否	币种，如 BTC
+ordId	String	否	活期借币订单 ID。
+如果不传 ordId，系统将默认对起始时间最早的现存订单进行操作。
+如果没有现存订单，系统将返回空数据。
+返回结果
+{
+    "code": "0",
+    "data": [
+        {
+            "assets": [
+                {
+                    "amt": "1.7921483143067599",
+                    "ccy": "BTC",
+                    "notionalUsd": "158292.621793314105231"
+                },
+                {
+                    "amt": "1.9400755578876945",
+                    "ccy": "ETH",
+                    "notionalUsd": "6325.6652712507628946"
+                },
+                {
+                    "amt": "63.9795959720319628",
+                    "ccy": "USDT",
+                    "notionalUsd": "64.3650372635940345"
+                }
+            ]
+        }
+    ],
+    "msg": ""}
+返回参数
+参数名	类型	描述
+assets	Array of objects	可抵押资产信息
+> ccy	String	币种，如 BTC
+> amt	String	可用数量
+> notionalUsd	String	可抵押资产的美金价值
+POST / 最大可借
+限速：5次/2s
+限速规则：User ID
+权限：读取
+HTTP请求
+POST /api/v5/finance/flexible-loan/max-loan
+请求示例
+from okx.Finance import FlexibleLoan
+# API 初始化apikey = "YOUR_API_KEY"secretkey = "YOUR_SECRET_KEY"passphrase = "YOUR_PASSPHRASE"
+flag = "0"  # 实盘: 0, 模拟盘: 1flexibleLoanAPI = FlexibleLoan.FlexibleLoanAPI(apikey, secretkey, passphrase, False, flag)result = flexibleLoanAPI.max_loan(ordId="12345", borrowCcy="USDT")print(result)
+请求参数
+参数	类型	是否必须	描述
+borrowCcy	String	是	借币币种，如 USDT
+ordId	String	否	活期借币订单 ID。
+如果不传 ordId，系统将默认对起始时间最早的现存订单进行操作。
+如果没有现存订单，系统将返回空数据。
+supCollateral	Array of objects	否	补充抵押资产信息
+> ccy	String	是	币种，如 BTC
+> amt	String	是	数量
+返回结果
+{
+    "code": "0",
+    "data": [
+        {
+            "borrowCcy": "USDT",
+            "maxLoan": "0.01113",
+            "notionalUsd": "0.01113356",
+            "remainingQuota": "3395000"
+        }
+    ],
+    "msg": ""}
+返回参数
+参数名	类型	描述
+borrowCcy	String	借币币种，如 USDT
+maxLoan	String	最大可借数量
+notionalUsd	String	最大可借美元价值
+remainingQuota	String	剩余可借额度，单位为borrowCcy
+GET / 抵押物最大可赎回数量
+限速：5次/2s
+限速规则：User ID
+权限：读取
+HTTP请求
+GET /api/v5/finance/flexible-loan/max-collateral-redeem-amount
+请求示例
+from okx.Finance import FlexibleLoan
+# API 初始化apikey = "YOUR_API_KEY"secretkey = "YOUR_SECRET_KEY"passphrase = "YOUR_PASSPHRASE"
+flag = "0"  # 实盘: 0, 模拟盘: 1flexibleLoanAPI = FlexibleLoan.FlexibleLoanAPI(apikey, secretkey, passphrase, False, flag)result = flexibleLoanAPI.max_collateral_redeem_amount(ordId="12345", ccy="USDT")print(result)
+请求参数
+参数	类型	是否必须	描述
+ccy	String	是	抵押物币种，如 USDT
+ordId	String	否	活期借币订单 ID。
+如果不传 ordId，系统将默认对起始时间最早的现存订单进行操作。
+如果没有现存订单，系统将返回空数据。
+返回结果
+{
+    "code": "0",
+    "data": [
+        {
+            "ccy": "USDT",
+            "maxRedeemAmt": "1"
+        }
+    ],
+    "msg": ""}
+返回参数
+参数名	类型	描述
+ccy	String	抵押物币种，如 USDT
+maxRedeemAmt	String	抵押物最大可赎回数量
+POST / 调整抵押物
+限速：5次/2s
+限速规则：User ID
+权限：交易
+HTTP请求
+POST /api/v5/finance/flexible-loan/adjust-collateral
+请求示例
+from okx.Finance import FlexibleLoan
+# API 初始化apikey = "YOUR_API_KEY"secretkey = "YOUR_SECRET_KEY"passphrase = "YOUR_PASSPHRASE"
+flag = "0"  # 实盘: 0, 模拟盘: 1flexibleLoanAPI = FlexibleLoan.FlexibleLoanAPI(apikey, secretkey, passphrase, False, flag)result = flexibleLoanAPI.adjust_collateral(type="add", ordId="12345", collateralCcy="USDT", collateralAmt="1")print(result)
+请求参数
+参数	类型	是否必须	描述
+type	String	是	操作类型
+add：补充抵押物
+reduce：减少抵押物
+collateralCcy	String	是	抵押物币种，如 BTC
+collateralAmt	String	是	抵押物数量
+ordId	String	否	活期借币订单 ID。
+如果不传 ordId，系统将默认对起始时间最早的现存订单进行操作。
+如果没有现存订单，系统将返回错误 51063
+返回结果
+{
+    "code": "0",
+    "data": [
+    ],
+    "msg": ""}
+返回参数
+code = 0 代表请求已被接受(不代表处理成功)
+GET / 借贷信息
+限速：5次/2s
+限速规则：User ID
+权限：读取
+HTTP请求
+GET /api/v5/finance/flexible-loan/loan-info
+请求示例
+from okx.Finance import FlexibleLoan
+# API 初始化apikey = "YOUR_API_KEY"secretkey = "YOUR_SECRET_KEY"passphrase = "YOUR_PASSPHRASE"
+flag = "0"  # 实盘: 0, 模拟盘: 1flexibleLoanAPI = FlexibleLoan.FlexibleLoanAPI(apikey, secretkey, passphrase, False, flag)result = flexibleLoanAPI.loan_info()print(result)
+请求参数
+参数	类型	是否必须	描述
+ordId	String	否	活期借币订单 ID。
+如果不传 ordId，系统将返回所有现存订单数据
+返回结果
+{
+    "code": "0",
+    "data": [
+        {
+            "ordId": "12345",
+            "collateralData": [
+                {
+                    "amt": "0.0000097",
+                    "ccy": "COMP"
+                },
+                {
+                    "amt": "0.78",
+                    "ccy": "STX"
+                },
+                {
+                    "amt": "0.001",
+                    "ccy": "DOT"
+                },
+                {
+                    "amt": "0.05357864",
+                    "ccy": "LUNA"
+                }
+            ],
+            "collateralNotionalUsd": "1.5078763",
+            "curLTV": "0.5742",
+            "liqLTV": "0.8374",
+            "loanData": [
+                {
+                    "amt": "0.86590608",
+                    "ccy": "USDC"
+                }
+            ],
+            "loanNotionalUsd": "0.8661285",
+            "marginCallLTV": "0.7374",
+            "riskWarningData": {
+                "instId": "",
+                "liqPx": ""
+            }
+        }
+    ],
+    "msg": ""}
+返回参数
+参数名	类型	描述
+ordId	String	订单 ID
+loanNotionalUsd	String	借币资产美金价值
+loanData	Array of objects	借币数据
+> ccy	String	借贷币种
+> amt	String	借贷数量
+collateralNotionalUsd	String	调整后的抵押物美金价值
+collateralData	Array of objects	抵押资产数据
+> ccy	String	抵押币种
+> amt	String	抵押数量
+riskWarningData	Object	风险预警信息
+> instId	String	清算交易产品，如 BTC-USDT
+仅当质押物和借币都只有一种时，该字段有效。其他情况返回""。
+> liqPx	String	清算价格
+清算价格的单位为交易产品的计价币，如 BTC-USDT中的USDT。
+仅当质押物和借币都只有一种时，该字段有效。其他情况返回""。
+curLTV	String	当前质押率，如 0.1代表10%
+注：LTV(Loan-to-Value，贷款价值比)
+marginCallLTV	String	预警质押率，如 0.1代表10%
+您的质押率达到预警质押率时，系统将会提示您当前质押率过高，即将触发强平。
+liqLTV	String	强平质押率，如 0.1代表10%
+若您的借贷达到强平质押率并被强平，您将损失质押物及已完成的还款。
+GET / 借贷历史
+限速：5次/2s
+限速规则：User ID
+权限：读取
+HTTP请求
+GET /api/v5/finance/flexible-loan/loan-history
+请求示例
+from okx.Finance import FlexibleLoan
+# API 初始化apikey = "YOUR_API_KEY"secretkey = "YOUR_SECRET_KEY"passphrase = "YOUR_PASSPHRASE"
+flag = "0"  # 实盘: 0, 模拟盘: 1flexibleLoanAPI = FlexibleLoan.FlexibleLoanAPI(apikey, secretkey, passphrase, False, flag)result = flexibleLoanAPI.loan_history()print(result)
+请求参数
+参数	类型	是否必须	描述
+type	String	否	操作类型
+borrowed：借入
+repaid：还币
+collateral_locked：锁定质押物
+collateral_released：释放质押物
+forced_repayment_buy：自动换币买入
+forced_repayment_sell：自动换币卖出
+forced_liquidation：强制平仓
+partial_liquidation：强制减仓
+sell_collateral：卖出质押资产
+buy_transition_coin：购买中介币种
+sell_transition_coin：卖出中介币种
+buy_borrowed_coin：购买借币币种
+after	String	否	请求此 ID 之前（更旧的数据）的分页内容，传的值为对应接口的refId（不包含）
+before	String	否	请求此 ID 之后（更新的数据）的分页内容，传的值为对应接口的refId（不包含）
+limit	String	否	返回结果的数量，最大为100，默认100条
+ordId	String	否	活期借币订单 ID。
+如果不传 ordId，系统将返回所有订单数据
+返回结果
+{
+    "code": "0",
+    "data": [
+        {
+            "amt": "-0.001",
+            "ccy": "DOT",
+            "refId": "17316594851045086",
+            "ts": "1731659485000",
+            "type": "collateral_locked"
+        }
+    ],
+    "msg": ""}
+返回参数
+参数名	类型	描述
+refId	String	对应记录ID
+type	String	操作类型
+ccy	String	币种，如 BTC
+amt	String	数量
+ts	String	操作发生时间，Unix 时间戳为毫秒数格式，如 1597026383085
+GET / 计息记录
+获取最近30天的计息记录。
+限速：5次/2s
+限速规则：User ID
+权限：读取
+HTTP请求
+GET /api/v5/finance/flexible-loan/interest-accrued
+请求示例
+from okx.Finance import FlexibleLoan
+# API 初始化apikey = "YOUR_API_KEY"secretkey = "YOUR_SECRET_KEY"passphrase = "YOUR_PASSPHRASE"
+flag = "0"  # 实盘: 0, 模拟盘: 1flexibleLoanAPI = FlexibleLoan.FlexibleLoanAPI(apikey, secretkey, passphrase, False, flag)result = flexibleLoanAPI.interest_accrued()print(result)
+请求参数
+参数	类型	是否必须	描述
+ccy	String	否	借贷币种，如 BTC
+after	String	否	请求此 ID 之前（更旧的数据）的分页内容，传的值为对应接口的refId（不包含）
+before	String	否	请求此 ID 之后（更新的数据）的分页内容，传的值为对应接口的refId（不包含）
+limit	String	否	返回结果的数量，最大为100，默认100条
+ordId	String	否	活期借币订单 ID。
+如果不传 ordId，系统将返回所有订单数据
+返回结果
+{
+    "code": "0",
+    "data": [
+        {
+            "ccy": "USDC",
+            "interest": "0.00004054",
+            "interestRate": "0.41",
+            "loan": "0.86599309",
+            "refId": "17319133035195744",
+            "ts": "1731913200000"
+        }
+    ],
+    "msg": ""}
+返回参数
+参数名	类型	描述
+refId	String	对应记录ID
+ccy	String	币种，如 BTC
+loan	String	计息时负债
+interest	String	利息
+interestRate	String	年化利率，如 0.01代表1%
+ts	String	计息时间，Unix 时间戳为毫秒数格式，如 1597026383085
+双币赢
+GET / 获取币对
+获取双币赢币对
+限速：1次/s
+限速规则：User ID
+权限：读取
+HTTP请求
+GET /api/v5/finance/sfp/dcd/currency-pair
+请求示例
+请求参数
+无
+返回结果
+{
+    "code": "0",
+    "msg": "",
+    "data": [
+        {
+            "baseCcy": "BTC",
+            "quoteCcy": "USDT",
+            "optType": "C",
+            "uly": "BTC-USD"
+        }
+    ]}
+返回参数
+参数名	类型	描述
+baseCcy	String	基础币种
+quoteCcy	String	报价币种
+optType	String	期权类型
+C：看涨
+P：看跌
+uly	String	标的
+GET / 获取产品信息
+获取双币赢产品列表
+限速：1次/s
+限速规则：User ID
+权限：读取
+HTTP请求
+GET /api/v5/finance/sfp/dcd/products
+请求示例
+请求参数
+参数名	类型	是否必须	描述
+baseCcy	String	是	基础币种
+quoteCcy	String	是	报价币种
+optType	String	是	期权类型
+C：看涨
+P：看跌
+返回结果
+{
+    "code": "0",
+    "msg": "",
+    "data": [
+        {
+            "absYield": "0.00232413",
+            "annualizedYield": "0.0541",
+            "baseCcy": "BTC",
+            "quoteCcy": "USDT",
+            "expTime": "1774598400000",
+            "interestAccrualTime": "1773244800000",
+            "listTime": "1743150759000",
+            "maxSize": "6000000",
+            "minSize": "10",
+            "notionalCcy": "USDT",
+            "optType": "P",
+            "productId": "BTC-USDT-260327-54500-P",
+            "quoteTime": "1773243808703",
+            "redeemEndTime": "1774594800000",
+            "redeemStartTime": "1773244800000",
+            "stepSz": "1",
+            "tradeEndTime": "1774584000000",
+            "strike": "54500",
+            "uly": "BTC-USD"
+        }
+    ]}
+返回参数
+参数名	类型	描述
+absYield	String	绝对收益率
+annualizedYield	String	年化收益率
+baseCcy	String	基础币种
+quoteCcy	String	报价币种
+notionalCcy	String	投资币种。若 C，则为 baseCcy；若 P，则为 quoteCcy。
+expTime	String	到期时间，Unix时间戳的毫秒数格式，如 1597026383085
+interestAccrualTime	String	利息开始计算时间，Unix时间戳的毫秒数格式，如 1597026383085
+listTime	String	产品上架时间，Unix时间戳的毫秒数格式，如 1597026383085
+minSize	String	最小交易规模（以投资币种计）
+maxSize	String	最大交易规模（以投资币种计）
+optType	String	期权类型
+C：看涨
+P：看跌
+productId	String	产品ID
+quoteTime	String	产品报价时间，Unix时间戳的毫秒数格式，如 1597026383085
+redeemStartTime	String	最早可申请提前赎回的时间，Unix时间戳的毫秒数格式，如 1597026383085
+redeemEndTime	String	最晚可申请提前赎回的时间，Unix时间戳的毫秒数格式，如 1597026383085
+stepSz	String	交易步长（以投资币种计）
+tradeEndTime	String	交易截止时间，Unix时间戳的毫秒数格式，如 1597026383085
+uly	String	标的
+strike	String	行权价
+POST / 获取报价
+为双币赢产品请求实时报价。报价有有效期，须在到期前使用。
+限速：10次/60s
+限速规则：User ID
+权限：交易
+HTTP请求
+POST /api/v5/finance/sfp/dcd/quote
+请求示例
+请求参数
+参数名	类型	是否必须	描述
+productId	String	是	产品ID
+notionalSz	String	是	投资数量
+notionalCcy	String	是	投资币种
+返回结果
+{
+    "code": "0",
+    "msg": "",
+    "data": [
+        {
+            "absYield": "0.00135182",
+            "annualizedYield": "69.65",
+            "interestAccrualTime": "1773241200000",
+            "notionalSz": "0.001",
+            "notionalCcy": "BTC",
+            "productId": "BTC-USDT-260312-72000-C",
+            "quoteId": "qtbcDCD-QUOTE17732395560537636",
+            "validUntil": "1774584000000",
+            "idxPx": "69000"
+        }
+    ]}
+返回参数
+参数名	类型	描述
+absYield	String	绝对收益率
+annualizedYield	String	年化收益率
+interestAccrualTime	String	利息开始计算时间，Unix时间戳的毫秒数格式，如 1597026383085
+notionalSz	String	投资数量
+notionalCcy	String	投资币种
+productId	String	产品ID
+quoteId	String	报价ID
+validUntil	String	报价有效期，Unix时间戳的毫秒数格式，如 1597026383085
+idxPx	String	指数价格
+POST / 下单
+使用有效报价下单双币赢。
+限速：2次/60s
+限速规则：User ID
+权限：交易
+HTTP请求
+POST /api/v5/finance/sfp/dcd/trade
+请求示例
+请求参数
+参数名	类型	是否必须	描述
+quoteId	String	是	报价ID
+返回结果
+{
+    "code": "0",
+    "msg": "",
+    "data": [
+        {
+            "quoteId": "quoterbpDCD-QUOTE17732116652401234",
+            "ordId": "987654321",
+            "state": "live"
+        }
+    ]}
+返回参数
+参数名	类型	描述
+quoteId	String	报价ID
+ordId	String	订单ID
+state	String	订单状态
+initial：系统已接收请求，待处理
+pending_book：流动性提供商已接收请求，待处理
+live：交易已生效
+rejected：交易已拒绝
+POST / 获取赎回报价
+为生效中的双币赢订单申请提前赎回报价。这是两步赎回流程的第一步，之后需调用 POST / 赎回 确认。
+限速：10次/60s
+限速规则：User ID
+权限：交易
+HTTP请求
+POST /api/v5/finance/sfp/dcd/redeem-quote
+请求示例
+请求参数
+参数名	类型	是否必须	描述
+ordId	String	是	订单ID
+返回结果
+{
+    "code": "0",
+    "msg": "",
+    "data": [
+        {
+            "ordId": "987654321",
+            "quoteId": "quoterbcDCD-REDEEM17732116652401234",
+            "redeemCcy": "BTC",
+            "redeemSz": "1.4856",
+            "termRate": "-0.50",
+            "validUntil": "1774598400000"
+        }
+    ]}
+返回参数
+参数名	类型	描述
+ordId	String	订单ID
+quoteId	String	报价ID
+redeemSz	String	赎回数量
+redeemCcy	String	赎回币种
+termRate	String	期限利率
+validUntil	String	赎回报价有效期，Unix时间戳的毫秒数格式，如 1597026383085
+POST / 赎回
+使用有效的赎回报价确认提前赎回。这是两步赎回流程的第二步。
+限速：2次/60s
+限速规则：User ID
+权限：交易
+HTTP请求
+POST /api/v5/finance/sfp/dcd/redeem
+请求示例
+请求参数
+参数名	类型	是否必须	描述
+ordId	String	是	订单ID
+quoteId	String	是	报价ID
+返回结果
+{
+    "code": "0",
+    "msg": "",
+    "data": [
+        {
+            "ordId": "987654321",
+            "state": "pending_redeem_booking"
+        }
+    ]}
+返回参数
+参数名	类型	描述
+ordId	String	订单ID
+state	String	订单状态
+pending_redeem_booking：赎回请求已接收，等待流动性提供商确认
+pending_redeem：流动性提供商已确认，等待资金划转
+redeeming：赎回处理中
+redeemed：赎回完成
+GET / 获取订单状态
+返回双币赢订单的当前状态。
+限速：3次/s
+限速规则：User ID
+权限：读取
+HTTP请求
+GET /api/v5/finance/sfp/dcd/order-status
+请求示例
+请求参数
+参数名	类型	是否必须	描述
+ordId	String	是	订单ID
+返回结果
+{
+    "code": "0",
+    "msg": "",
+    "data": [
+        {
+            "ordId": "987654321",
+            "state": "live"
+        }
+    ]}
+返回参数
+参数名	类型	描述
+ordId	String	订单ID
+state	String	订单状态
+initial
+live
+pending_settle
+settled
+pending_redeem
+redeemed
+rejected
+GET / 获取历史订单
+返回双币赢历史订单列表
+限速：1次/s
+限速规则：User ID
+权限：读取
+HTTP请求
+GET /api/v5/finance/sfp/dcd/order-history
+请求示例
+请求参数
+参数名	类型	是否必须	描述
+ordId	String	否	订单ID。传入时直接返回该订单（忽略其他筛选条件）
+productId	String	否	产品ID，如 BTC-USDT-260327-77000-C
+uly	String	否	标的指数，如 BTC-USD
+state	String	否	订单状态筛选
+initial
+live
+pending_settle
+settled
+pending_redeem
+redeemed
+rejected
+beginId	String	否	返回比该订单ID更新的记录
+endId	String	否	返回比该订单ID更早的记录
+begin	String	否	开始时间戳筛选，Unix时间戳的毫秒数格式，如 1597026383085
+end	String	否	结束时间戳筛选，Unix时间戳的毫秒数格式，如 1597026383085
+limit	String	否	每次请求返回的结果数量，最大100
+返回结果
+{
+    "code": "0",
+    "msg": "",
+    "data": [
+        {
+            "ordId": "987654321",
+            "quoteId": "quoterbpDCD-QUOTE17732116652401234",
+            "state": "settled",
+            "productId": "BTC-USDT-260327-77000-C",
+            "baseCcy": "BTC",
+            "quoteCcy": "USDT",
+            "uly": "BTC-USD",
+            "strike": "77000",
+            "notionalSz": "1.5",
+            "notionalCcy": "BTC",
+            "absYield": "0.00806038",
+            "annualizedYield": "0.1834",
+            "yieldSz": "0.01209057",
+            "yieldCcy": "BTC",
+            "settleSz": "1.51209057",
+            "settleCcy": "BTC",
+            "settlePx": "76500",
+            "settleTime": "1774598400000",
+            "expTime": "1774598400000",
+            "redeemStartTime" : "1774598400000",
+            "redeemEndime": "1774598400000",
+            "cTime": "1773212400000",
+            "uTime": "1773212400000"
+        }
+    ]}
+返回参数
+参数名	类型	描述
+ordId	String	订单ID
+quoteId	String	报价ID
+state	String	订单状态
+initial
+live
+pending_settle
+settled
+pending_redeem
+redeemed
+rejected
+productId	String	产品ID，如 BTC-USDT-260327-77000-C
+baseCcy	String	基础币种，如 BTC
+quoteCcy	String	计价币种，如 USDT
+uly	String	标的指数，如 BTC-USD
+strike	String	行权价
+notionalSz	String	投资数量
+notionalCcy	String	投资币种
+absYield	String	绝对收益率
+annualizedYield	String	年化收益率
+yieldSz	String	收益金额
+yieldCcy	String	收益币种
+settleSz	String	结算金额（未结算时为""）
+settleCcy	String	结算币种（未结算时为""）
+settlePx	String	结算价格（未结算时为""）
+expTime	String	产品到期时间，Unix时间戳的毫秒数格式，如 1597026383085
+settleTime	String	实际结算时间，Unix时间戳的毫秒数格式，如 1597026383085（未结算时为""）
+redeemStartTime	String	最早可申请提前赎回的时间，Unix时间戳的毫秒数格式，如 1597026383085
+redeemEndTime	String	最晚可申请提前赎回的时间，Unix时间戳的毫秒数格式，如 1597026383085
+cTime	String	订单创建时间，Unix时间戳的毫秒数格式，如 1597026383085
+uTime	String	最后更新时间，Unix时间戳的毫秒数格式，如 1597026383085
+
